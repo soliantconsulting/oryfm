@@ -1,0 +1,11 @@
+extends ../layout
+
+block content
+    div.card-header= cl('Success')
+    div.card-body
+        div(
+            class="alert alert-success"
+        )= cl('You should receive an email shortly with a link to set your new password.')
+
+        if resetLink
+            a(href=resetLink)= cl('Test Mode Link')

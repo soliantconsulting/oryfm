@@ -1,0 +1,19 @@
+extends ../layout
+
+block content
+    div.card-header= cl('Reset Password')
+    div.card-body
+        p= cl('Enter your account email address below to continue.')
+
+        if errors.length > 0
+            div(class="alert alert-danger")= errors[0]
+
+        form(action="/password-reset/request/" + clientId method="POST" class="needs-validation" novalidate)
+            input(type="hidden" name="_csrf" value=csrfToken)
+
+            div.form-group
+                label(for="emailAddress")= cl('Email Address')
+                input(type="email" id="emailAddress" name="emailAddress" class="form-control" required)
+                div.invalid-feedback= cl('Enter valid email address')
+
+            button(type="submit" class="btn btn-primary float-right")= cl('Continue')

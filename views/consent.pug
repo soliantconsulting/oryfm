@@ -1,0 +1,27 @@
+extends layout
+
+block content
+    div.card-header= cl('Login')
+    div.card-body
+        h5= cl('{{clientName}} wants to access your account.', {clientName: client.client_name})
+
+        if scope.length > 0
+            p This will allow #{client.client_name} to:
+            ul
+                each label in scope
+                    li= label
+
+        p= cl('Make sure you trust {{clientName}}.', {clientName: client.client_name})
+
+        form(action="/consent" method="POST" class="needs-validation" novalidate)
+            input(type="hidden" name="_csrf" value=csrfToken)
+            input(type="hidden" name="challenge" value=challenge)
+
+            if showRememberChoice
+                div.mb-4
+                    div(class="custom-control custom-checkbox")
+                        input.custom-control-input(type="checkbox" name="remember" id="remember")
+                        label.custom-control-label(for="remember")= cl('Remember Decision')
+
+            button(type="submit" name="allow" value="false" class="btn btn-text px-0")= cl('Cancel')
+            button(type="submit" name="allow" value="true" class="btn btn-primary float-right")= cl('Allow')

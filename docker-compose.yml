@@ -1,0 +1,36 @@
+version: '3'
+
+services:
+  hydra:
+    image: oryd/hydra:v1.0.9
+    depends_on:
+      - postgres
+    ports:
+      - '4444:4444'
+      - '4445:4445'
+    command:
+      serve all --dangerous-force-http
+    environment:
+      - URLS_SELF_ISSUER=http://localhost:4444/
+      - URLS_CONSENT=http://localhost:3000/consent
+      - URLS_LOGIN=http://localhost:3000/login
+      - URLS_LOGOUT=http://localhost:3000/logout
+      - URLS_ERROR=http://localhost:3000/error
+      - DSN=postgres://dev:dev@postgres/dev?sslmode=disable
+      - SECRETS_SYSTEM=dev123456789123456789
+      - OIDC_SUBJECT_IDENTIFIERS_SUPPORTED=public,pairwise
+      - OIDC_SUBJECT_IDENTIFIERS_PAIRWISE_SALT=dev123456789123456789
+    volumes:
+      - './dev-client.json:/opt/dev-client.json'
+
+  postgres:
+    image: postgres:11.2
+    volumes:
+      - 'postgres-data:/var/lib/postgresql/data'
+    environment:
+      - POSTGRES_USER=dev
+      - POSTGRES_PASSWORD=dev
+      - POSTGRES_DB=dev
+
+volumes:
+  postgres-data:

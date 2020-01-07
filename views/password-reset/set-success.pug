@@ -1,0 +1,9 @@
+extends ../layout
+
+block content
+    div.card-header= cl('Success')
+    div.card-body
+        div(class="alert alert-success")= cl('Your new password has been setup successfully.')
+
+        if client.metadata.application_url
+            a(class="btn btn-primary float-right" href=client.metadata.application_url)= cl('Continue')

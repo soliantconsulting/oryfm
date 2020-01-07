@@ -1,0 +1,24 @@
+{
+    "client_id": "dev",
+    "client_name": "Dev Client",
+    "client_secret":  "dev123456789123456789",
+    "grant_types": [
+        "implicit"
+    ] ,
+    "redirect_uris": [
+        "http://localhost:12345/login-callback"
+    ] ,
+    "post_logout_redirect_uris": [
+        "http://localhost:12345/logout-callback"
+    ],
+    "response_types": [
+        "code" ,
+        "token" ,
+        "token id_token"
+    ] ,
+    "scope":  "openid email profile",
+    "metadata": {
+        "application_login_uri": "http://localhost:12345/login",
+        "first_party_client": true
+    }
+}

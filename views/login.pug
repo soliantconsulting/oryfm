@@ -1,0 +1,37 @@
+extends layout
+
+block content
+    div.card-header= cl('Login')
+    div.card-body
+        if errors.length > 0
+            div(class="alert alert-danger")= errors[0]
+
+        form(action="/login" method="POST" class="needs-validation" novalidate)
+            input(type="hidden" name="_csrf" value=csrfToken)
+            input(type="hidden" name="challenge" value=challenge)
+
+            div.form-group
+                if authenticationMethod !== 'basic-auth'
+                    label(for="emailAddress")= cl('Email Address')
+                    input(type="email" id="emailAddress" name="emailAddress" class="form-control" required)
+                    div.invalid-feedback= cl('Enter valid email address')
+                else
+                    label(for="username")= cl('Username')
+                    input(type="text" id="username" name="username" class="form-control" required)
+                    div.invalid-feedback= cl('Enter username')
+
+            div.form-group
+                label(for="password")= cl('Password')
+                input(type="password" id="password" name="password" class="form-control" required)
+                div.invalid-feedback= cl('Enter password')
+
+            if showRememberChoice
+                div.mb-4
+                    div(class="custom-control custom-checkbox")
+                        input.custom-control-input(type="checkbox" name="remember" id="remember")
+                        label.custom-control-label(for="remember")= cl('Remember Me')
+
+            if authenticationMethod !== 'basic-auth'
+                a(href="/password-reset/request/" + client.client_id class="btn btn-text px-0")= cl('Forgot Password?')
+
+            button(type="submit" class="btn btn-primary float-right")= cl('Proceed')

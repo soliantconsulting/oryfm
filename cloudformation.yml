@@ -1,0 +1,824 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Stack template for running OryFM with Hydra
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "EC2 Configuration"
+        Parameters:
+          - InstanceType
+          - KeyName
+      - Label:
+          default: "VPC Configuration"
+        Parameters:
+          - VpcCidr
+          - FirstPublicSubnetCidr
+          - SecondPublicSubnetCidr
+      - Label:
+          default: "Domain Configuration"
+        Parameters:
+          - OryFmDomainName
+          - HydraPublicDomainName
+          - HydraAdminDomainName
+      - Label:
+          default: "OryFM Configuration"
+        Parameters:
+          - OryFmDefaultLoginRememberTime
+          - OryFmUserLoginRememberTime
+          - OryFmDefaultConsentRememberTime
+          - OryFmUserConsentRememberTime
+          - OryFmThemeCssUrl
+          - OryFmCustomLabelsUrl
+          - OryFmAuthenticationMethod
+          - OryFmTestMode
+      - Label:
+          default: "FileMaker Configuration"
+        Parameters:
+          - FileMakerUrl
+          - FileMakerDatabase
+          - FileMakerUsername
+          - FileMakerPassword
+
+Parameters:
+
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: t2.small
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: Can contain only ASCII characters.
+
+  VpcCidr:
+    Type: String
+    AllowedPattern: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:2[0-8]|1[6-9])$'
+    Description: CIDR for VPC
+    Default: 10.0.61.0/22
+
+  FirstPublicSubnetCidr:
+    Type: String
+    AllowedPattern: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:2[0-8]|1[6-9])$'
+    Description: CIDR for first public subnet
+    Default: 10.0.61.0/26
+
+  SecondPublicSubnetCidr:
+    Type: String
+    AllowedPattern: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:2[0-8]|1[6-9])$'
+    Description: CIDR for second public subnet
+    Default: 10.0.61.64/26
+
+  OryFmDomainName:
+    Type: String
+    AllowedPattern: (([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])
+  HydraPublicDomainName:
+    Type: String
+    AllowedPattern: (([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])
+  HydraAdminDomainName:
+    Type: String
+    AllowedPattern: (([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])
+
+  OryFmDefaultLoginRememberTime:
+    Description: How long to remember login when user doesn't check box (set to 0 to disable)
+    Type: Number
+    MinValue: 0
+    Default: 900
+  OryFmUserLoginRememberTime:
+    Description: How long to remember login when user checks box (set to 0 to disable)
+    Type: Number
+    MinValue: 0
+    Default: 2592000
+  OryFmDefaultConsentRememberTime:
+    Description: How long to remember consent when user doesn't check box (set to 0 to disable)
+    Type: Number
+    MinValue: 0
+    Default: 900
+  OryFmUserConsentRememberTime:
+    Description: How long to remember consent when user checks box (set to 0 to disable)
+    Type: Number
+    MinValue: 0
+    Default: 2592000
+  OryFmThemeCssUrl:
+    Description: Optional URL for custom OryFM theme
+    Type: String
+    AllowedPattern: https?://(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])
+  OryFmCustomLabelsUrl:
+    Description: Optional URL for custom labels
+    Type: String
+    AllowedPattern: https?://(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])
+  OryFmAuthenticationMethod:
+    Description: Whether to run OryFM in test mode
+    Type: String
+    AllowedValues:
+      - bcrypt
+      - ''
+    Default: ''
+  OryFmTestMode:
+    Description: Whether to run OryFM in test mode
+    Type: String
+    AllowedValues:
+      - true
+      - ''
+    Default: ''
+
+  FileMakerUrl:
+    Type: String
+    AllowedPattern: https?://(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])
+  FileMakerDatabase:
+    Type: String
+  FileMakerUsername:
+    Type: String
+  FileMakerPassword:
+    Type: String
+    NoEcho: true
+
+Mappings:
+
+  RegionMap:
+    us-east-1:
+      AMI: ami-0fba9b33b5304d8b4
+    us-east-2:
+      AMI: ami-0e04554247365d806
+    us-west-1:
+      AMI: ami-07390b6ff5934a238
+    us-west-2:
+      AMI: ami-03804ed633fe58109
+
+Resources:
+  # VPS
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  InternetGatewayVpcAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  FirstPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select
+        - 0
+        - Fn::GetAZs: !Ref AWS::Region
+      CidrBlock: !Ref FirstPublicSubnetCidr
+      MapPublicIpOnLaunch: true
+
+  SecondPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select
+        - 1
+        - Fn::GetAZs: !Ref AWS::Region
+      CidrBlock: !Ref SecondPublicSubnetCidr
+      MapPublicIpOnLaunch: true
+
+  PublicSubnetsRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  FirstPublicSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref FirstPublicSubnet
+      RouteTableId: !Ref PublicSubnetsRouteTable
+
+  SecondPublicSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SecondPublicSubnet
+      RouteTableId: !Ref PublicSubnetsRouteTable
+
+  PublicSubnetsInternetGatewayRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicSubnetsRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # ALB
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      Subnets:
+        - !Ref FirstPublicSubnet
+        - !Ref SecondPublicSubnet
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Public access to ALB
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+
+  LoadBalancerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !Ref Vpc
+      Targets:
+        - Id: !Ref WebInstance
+
+  LoadBalancerHttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref LoadBalancerTargetGroup
+      Port: 80
+      Protocol: HTTP
+
+  LoadBalancerHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref LoadBalancerTargetGroup
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref OryFmCertificate
+
+  LoadBalancerListenerCertificates:
+    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
+    Properties:
+      ListenerArn: !Ref LoadBalancerHttpsListener
+      Certificates:
+        - CertificateArn: !Ref HydraPublicCertificate
+        - CertificateArn: !Ref HydraAdminCertificate
+
+  # Certificates
+  OryFmCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref OryFmDomainName
+      ValidationMethod: DNS
+
+  HydraPublicCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref HydraPublicDomainName
+      ValidationMethod: DNS
+
+  HydraAdminCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref HydraAdminDomainName
+      ValidationMethod: DNS
+
+  # Secrets
+  HydraAdminSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Secret for Hydra Admin
+      GenerateSecretString:
+        PasswordLength: 32
+        ExcludePunctuation: true
+
+  # EC2
+  DeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Effect: Allow
+
+  DeploymentPolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: SecretsRead
+      PolicyDocument:
+        Statement:
+          - Action:
+              - secretsmanager:GetSecretValue
+            Effect: Allow
+            Resource: !Ref HydraAdminSecret
+      Roles:
+        - !Ref DeploymentRole
+
+  DeploymentProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref DeploymentRole
+      Path: /
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to host
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        # Free access for ALB
+        - IpProtocol: -1
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        # Public SSH access
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  InstanceIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref WebInstance
+    DependsOn: InternetGatewayVpcAttachment
+
+  WebInstance:
+    Type: AWS::EC2::Instance
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+        Count: 1
+    Properties:
+      ImageId:
+        Fn::FindInMap:
+          - RegionMap
+          - !Ref AWS::Region
+          - AMI
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref DeploymentProfile
+      SubnetId: !Ref FirstPublicSubnet
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install -y python-setuptools
+          mkdir -p /opt/aws/bin
+          python /usr/lib/python2.7/dist-packages/easy_install.py \
+            --script-dir /opt/aws/bin \
+            https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+
+          /opt/aws/bin/cfn-init -v \
+            --stack ${AWS::StackName} \
+            --resource WebInstance \
+            --region ${AWS::Region} \
+            --configsets full_install
+
+          /opt/aws/bin/cfn-signal -e $? \
+            --stack ${AWS::StackName} \
+            --resource WebInstance \
+            --region ${AWS::Region}
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          full_install:
+            - install_aws_cli
+            - install_and_enable_cfn_hup
+            - install_docker
+            - install_node
+            - install_nginx
+            - install_hydra
+            - update_hydra
+            - install_oryfm
+            - update_and_build_oryfm
+          update:
+            - update_hydra
+            - update_and_build_oryfm
+
+        install_aws_cli:
+          packages:
+            apt:
+              jq: []
+              python3-pip: []
+          commands:
+            01_install_awscli:
+              command: yes | pip3 install awscli --upgrade --user
+
+        install_and_enable_cfn_hup:
+          files:
+            /etc/cfn/cfn-hup.conf:
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+              mode: "000400"
+              owner: root
+              group: root
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.WebInstance.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WebInstance --configsets update --region ${AWS::Region}
+                runas=root
+              mode: "000400"
+              owner: root
+              group: root
+            /lib/systemd/system/cfn-hup.service:
+              content: !Sub |
+                [Unit]
+                Description=cfn-hup daemon
+
+                [Service]
+                Type=simple
+                ExecStart=/opt/aws/bin/cfn-hup
+                Restart=always
+
+                [Install]
+                WantedBy=multi-user.target
+              mode: "000644"
+              owner: root
+              group: root
+          commands:
+            01_enable_cfn_hup:
+              command: systemctl enable cfn-hup.service
+            02_start_cfn_hup:
+              command: systemctl start cfn-hup.service
+
+        install_docker:
+          packages:
+            apt:
+              apt-transport-https: []
+              ca-certificates: []
+              curl: []
+              gnupg2: []
+              software-properties-common: []
+          commands:
+            01_add_repository_key:
+              command: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+            02_add_repository:
+              command: add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+            03_update_apt_get:
+              command: apt-get update
+            04_install_docker:
+              command: apt-get install -y docker-ce
+            05_add_docker_group:
+              command: groupadd docker
+            06_add_ubuntu_to_group:
+              command: usermod -aG docker ubuntu
+
+        install_node:
+          commands:
+            01_add_repository:
+              command: curl -sL https://deb.nodesource.com/setup_12.x | bash -
+            02_install_node:
+              command: apt-get install -y nodejs
+
+        install_nginx:
+          commands:
+            01_install:
+              command: apt-get install -y nginx
+
+        install_hydra:
+          files:
+            /etc/nginx/sites-available/hydra-public.conf:
+              content: !Sub |
+                server {
+                    listen 80;
+                    server_name ${HydraPublicDomainName};
+
+                    if ($http_x_forwarded_proto != 'https') {
+                        rewrite ^ https://$host$request_uri? permanent;
+                    }
+
+                    location / {
+                        if ($request_method = 'OPTIONS') {
+                            add_header 'Access-Control-Allow-Origin' '*';
+                            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                            add_header 'Access-Control-Allow-Credentials' 'true';
+                            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
+                            add_header 'Access-Control-Max-Age' 1728000;
+                            add_header 'Content-Type' 'text/plain; charset=utf-8';
+                            add_header 'Content-Length' 0;
+                            return 204;
+                        }
+
+                        if ($request_method = 'POST') {
+                            add_header 'Access-Control-Allow-Origin' '*';
+                            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                            add_header 'Access-Control-Allow-Credentials' 'true';
+                            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
+                            add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
+                        }
+
+                        if ($request_method = 'GET') {
+                            add_header 'Access-Control-Allow-Origin' '*';
+                            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                            add_header 'Access-Control-Allow-Credentials' 'true';
+                            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
+                            add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
+                        }
+
+                        proxy_pass http://127.0.0.1:9000;
+                        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+                    }
+                }
+              mode: "000644"
+              owner: root
+              group: root
+          packages:
+            apt:
+              pwgen: []
+          commands:
+            01_create_postgres_secret:
+              command: echo "POSTGRES_SECRET=$(pwgen -s 32 1)" >> /etc/hydra-secrets.env
+            02_create_system_secret:
+              command: echo "SYSTEM_SECRET=$(pwgen -s 32 1)" >> /etc/hydra-secrets.env
+            03_create_oidc_salt:
+              command: echo "OIDC_SALT=$(pwgen -s 32 1)" >> /etc/hydra-secrets.env
+            04_create_database_url:
+              command: env $(cat /etc/hydra-secrets.env | xargs) echo "POSTGRES_URL=postgres://hydra:$POSTGRES_SECRET@ory-postgres:5432/hydra?sslmode=disable" >> /etc/hydra-secrets.env
+            04_setup_internal_host:
+              command: echo "127.0.0.1 hydra-admin.local" >> /etc/hosts
+            05_create_hydra_network:
+              command: docker network create hydra
+            06_install_postgres:
+              command: !Sub |
+                env $(cat /etc/hydra-secrets.env | xargs) docker run \
+                  --network hydra \
+                  --name ory-postgres \
+                  --restart always \
+                  -e POSTGRES_USER=hydra \
+                  -e POSTGRES_PASSWORD=$POSTGRES_SECRET \
+                  -e POSTGRES_DB=hydra \
+                  -d postgres:9.6
+
+        update_hydra:
+          files:
+            /etc/nginx/sites-available/hydra-public.conf:
+              content: !Sub |
+                server {
+                    listen 80;
+                    server_name ${HydraPublicDomainName};
+
+                    if ($http_x_forwarded_proto != 'https') {
+                        rewrite ^ https://$host$request_uri? permanent;
+                    }
+
+                    location / {
+                        if ($request_method = 'OPTIONS') {
+                            add_header 'Access-Control-Allow-Origin' '*';
+                            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                            add_header 'Access-Control-Allow-Credentials' 'true';
+                            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
+                            add_header 'Access-Control-Max-Age' 1728000;
+                            add_header 'Content-Type' 'text/plain; charset=utf-8';
+                            add_header 'Content-Length' 0;
+                            return 204;
+                        }
+
+                        if ($request_method = 'POST') {
+                            add_header 'Access-Control-Allow-Origin' '*';
+                            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                            add_header 'Access-Control-Allow-Credentials' 'true';
+                            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
+                            add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
+                        }
+
+                        if ($request_method = 'GET') {
+                            add_header 'Access-Control-Allow-Origin' '*';
+                            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+                            add_header 'Access-Control-Allow-Credentials' 'true';
+                            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
+                            add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
+                        }
+
+                        proxy_pass http://127.0.0.1:9000;
+                        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+                    }
+                }
+              mode: "000644"
+              owner: root
+              group: root
+            /etc/nginx/sites-enabled/hydra-public.conf:
+              content: /etc/nginx/sites-available/hydra-public.conf
+              mode: "120644"
+              owner: root
+              group: root
+            /etc/nginx/sites-available/hydra-admin.conf:
+              content: !Sub |
+                server {
+                    listen 80;
+                    server_name ${HydraAdminDomainName};
+
+                    if ($http_x_forwarded_proto != 'https') {
+                        rewrite ^ https://$host$request_uri? permanent;
+                    }
+
+                    location /clients {
+                        auth_basic 'Client Administration';
+                        auth_basic_user_file /etc/hydra-admin.htpasswd;
+
+                        proxy_pass http://127.0.0.1:9001/clients;
+                        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+                    }
+
+                    location /oauth2/introspect {
+                        proxy_pass http://127.0.0.1:9001/oauth2/introspect;
+                        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+                    }
+                }
+              mode: "000644"
+              owner: root
+              group: root
+            /etc/nginx/sites-enabled/hydra-admin.conf:
+              content: /etc/nginx/sites-available/hydra-admin.conf
+              mode: "120644"
+              owner: root
+              group: root
+            /etc/nginx/sites-available/hydra-admin-local.conf:
+              content: !Sub |
+                server {
+                  listen 127.0.0.1:80;
+                  server_name hydra-admin.local;
+
+                  location / {
+                    proxy_pass http://127.0.0.1:9001;
+                    proxy_set_header X-Forwarded-Proto https;
+                  }
+                }
+              mode: "000644"
+              owner: root
+              group: root
+            /etc/nginx/sites-enabled/hydra-admin-local.conf:
+              content: /etc/nginx/sites-available/hydra-admin-local.conf
+              mode: "120644"
+              owner: root
+              group: root
+          commands:
+            01_pull_hydra:
+              command: docker pull oryd/hydra:v1.1.1
+            02_migrate_database:
+              command: env $(cat /etc/hydra-secrets.env | xargs) docker run --rm --network hydra oryd/hydra:v1.1.1 migrate sql --yes $POSTGRES_URL
+            03_remove_hydra:
+              command: docker rm ory-hydra || true
+            04_start_hydra:
+              command: !Sub |
+                docker run -d \
+                  --name ory-hydra \
+                  --network hydra \
+                  --restart always \
+                  -p 127.0.0.1:9000:4444 \
+                  -p 127.0.0.1:9001:4445 \
+                  -e SERVE_TLS_ALLOW_TERMINATION_FROM=172.18.0.0/16 \
+                  -e SECRETS_SYSTEM=$SYSTEM_SECRET \
+                  -e DSN=$POSTGRES_URL \
+                  -e URLS_SELF_ISSUER=https://${HydraPublicDomainName}/ \
+                  -e URLS_CONSENT=https://${OryFmDomainName}/consent \
+                  -e URLS_LOGIN=https://${OryFmDomainName}/login \
+                  -e URLS_LOGOUT=https://${OryFmDomainName}/logout \
+                  -e URLS_ERROR=https://${OryFmDomainName}/error \
+                  -e OIDC_SUBJECT_IDENTIFIERS_SUPPORTED=public,pairwise \
+                  -e OIDC_SUBJECT_IDENTIFIERS_PAIRWISE_SALT=$OIDC_SALT \
+                  oryd/hydra:v1.1.1 serve all
+            05_create_htpasswd:
+              command: aws --region ${AWS::Region} secretsmanager get-secret-value --secret-id ${HydraAdminSecret} | htpasswd -ci /etc/hydra-admin.htpasswd admin
+            05_reload_nginx:
+              command: systemctl reload nginx
+
+        install_oryfm:
+          packages:
+            apt:
+              git: []
+          users:
+            oryfm:
+              groups:
+                - oryfm
+              homeDir:
+                /opt/oryfm
+          commands:
+            01_create_directory:
+              command: mkdir -p /opt/oryfm
+            02_chown_directory:
+              command: chown oryfm:oryfm /opt/oryfm
+            03_clone:
+              command: runuser -l oryfm -c 'git clone https://github.com/soliantconsulting/oryfm.git /opt/oryfm'
+
+        update_and_build_oryfm:
+          files:
+            /var/www/oryfm/.env:
+              content: !Sub |
+                FILEMAKER_URL=${FilemakerUrl}
+                FILEMAKER_DATABASE=${FilemakerDatabase}
+                FILEMAKER_USERNAME=${FilemakerUsername}
+                FILEMAKER_PASSWORD=${FilemakerPassword}
+                LOGIN_DEFAULT_REMEMBER_TIME=${OryFmDefaultLoginRememberTime}
+                LOGIN_USER_REMEMBER_TIME=${OryFmUserLoginRememberTime}
+                CONSENT_DEFAULT_REMEMBER_TIME=${OryFmDefaultConsentRememberTime}
+                CONSENT_USER_REMEMBER_TIME=${OryFmUserConsentRememberTime}
+                HYDRA_ADMIN_URL=http://hydra-admin.local:
+                THEME_CSS_URL=${OryFmThemeCssUrl}
+                AUTHENTICATION_METHOD=${OryFmAuthenticationMethod}
+                TEST_MODE=${OryFmTestMode}
+              mode: "000644"
+              owner: oryfm
+              group: oryfm
+            /lib/systemd/system/oryfm.service:
+              content: !Sub |
+                [Unit]
+                Description=OryFM instance
+                After=network.target
+
+                [Service]
+                Type=simple
+                User=oryfm
+                WorkingDirectory=/opt/oryfm
+                ExecStart=/usr/bin/node /var/www/oryfm/dist/serve.js
+                Restart=on-failure
+
+                [Install]
+                WantedBy=multi-user.target
+              mode: "000644"
+              owner: root
+              group: root
+            /etc/nginx/sites-available/oryfm.conf:
+              content: !Sub |
+                server {
+                  listen 80;
+                  server_name ${OryFmDomainName};
+
+                  if ($http_x_forwarded_proto != 'https') {
+                    rewrite ^ https://$host$request_uri? permanent;
+                  }
+
+                  location / {
+                    proxy_pass http://127.0.0.1:3000;
+                  }
+                }
+              mode: "000644"
+              owner: root
+              group: root
+            /etc/nginx/sites-enabled/oryfm.conf:
+              content: /etc/nginx/sites-available/oryfm.conf
+              mode: "120644"
+              owner: root
+              group: root
+            /usr/local/bin/update-custom-labels.sh
+              content: !Sub |
+                #!/bin/bash
+
+                URL="${OryFmCustomLabelsUrl}"
+                TARGET="/opt/oryfm/custom-labels.json"
+
+                if [ -z "$URL" ]
+                then
+                  rm -f "$TARGET"
+                  exit
+                fi
+
+                wget -O "$TARGET" "$URL"
+              mode: "000755"
+              owner: root
+              group: root
+          commands:
+            01_update:
+              command: runuser -l oryfm -c 'git pull'
+              cwd: /opt/oryfm
+            02_install:
+              command: runuser -l oryfm -c 'npm install'
+              cwd: /opt/oryfm
+            03_build:
+              command: runuser -l oryfm -c 'npm run build'
+              cwd: /opt/oryfm
+            04_update_custom_labels:
+              command: runuser -l oryfm -c 'update-custom-labels.sh'
+            05_reload_daemon:
+              command: systemctl daemon-reload
+            06_enable_daemon:
+              command: systemctl enable oryfm
+            07_restart_daemon:
+              command: systemctl restart oryfm
+            08_reload_nginx:
+              command: systemctl reload nginx
+
+Outputs:
+  SSH:
+    Value: !Ref InstanceIp
+    Description: "SSH access IP (User: ubuntu)"

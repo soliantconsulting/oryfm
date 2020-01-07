@@ -1,0 +1,29 @@
+extends ../layout
+
+block content
+    div.card-header= cl('Set Password')
+    div.card-body
+        p= cl('Create a new password.')
+
+        if errors.length > 0
+            div(class="alert alert-danger")= errors[0]
+
+        form(
+            action="/password-reset/set/" + client.client_id + "/" + token
+            method="POST"
+            class="needs-validation"
+            novalidate
+        )
+            input(type="hidden" name="_csrf" value=csrfToken)
+
+            div.form-group
+                label(for="password")= cl('Password')
+                input(type="password" id="password" name="password" class="form-control" pattern=".{8,}" required)
+                div.invalid-feedback= cl('Enter at least {{min}} character', {min: 8})
+
+            div.form-group
+                label(for="confirmPassword")= cl('Retype Password')
+                input(type="password" id="confirmPassword" name="confirmPassword" class="form-control" required)
+                div.invalid-feedback= cl('Passwords do not match')
+
+            button(type="submit" class="btn btn-primary float-right")= cl('Continue')

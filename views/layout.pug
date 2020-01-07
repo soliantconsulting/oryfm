@@ -1,0 +1,21 @@
+doctype html
+html(lang="en")
+    head
+        meta(charset="utf-8")
+        meta(name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no")
+        title= cl('OryFM')
+        link(
+            rel="stylesheet"
+            href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+            integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T"
+            crossorigin="anonymous"
+        )
+        link(rel="stylesheet" href="/style.css")
+        link(rel="shortcut icon" href="/favicon.ico" type="image/x-icon")
+        if themeCssUrl
+            link(rel="stylesheet" href=themeCssUrl)
+    body
+        div(class="row justify-content-center align-items-stretch align-items-sm-center m-0 outer-container")
+            div(class="card content")
+                block content
+        script(type="text/javascript" src="/script.js")
