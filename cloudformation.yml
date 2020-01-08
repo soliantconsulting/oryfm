@@ -41,6 +41,7 @@ Metadata:
           - FileMakerDatabase
           - FileMakerUsername
           - FileMakerPassword
+          - FileMakerLayout
 
 Parameters:
 
@@ -104,18 +105,18 @@ Parameters:
   OryFmThemeCssUrl:
     Description: Optional URL for custom OryFM theme
     Type: String
-    AllowedPattern: https?://(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])
+    AllowedPattern: (|https?://(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9]))
   OryFmCustomLabelsUrl:
     Description: Optional URL for custom labels
     Type: String
-    AllowedPattern: https?://(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])
+    AllowedPattern: (|https?://(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9]))
   OryFmAuthenticationMethod:
     Description: Whether to run OryFM in test mode
     Type: String
     AllowedValues:
       - bcrypt
-      - ''
-    Default: ''
+      - basic-auth
+    Default: bcrypt
   OryFmTestMode:
     Description: Whether to run OryFM in test mode
     Type: String
@@ -134,18 +135,20 @@ Parameters:
   FileMakerPassword:
     Type: String
     NoEcho: true
+  FileMakerLayout:
+    Type: String
 
 Mappings:
 
   RegionMap:
     us-east-1:
-      AMI: ami-0fba9b33b5304d8b4
+      AMI: ami-00a208c7cdba991ea
     us-east-2:
-      AMI: ami-0e04554247365d806
+      AMI: ami-059d836af932792c3
     us-west-1:
-      AMI: ami-07390b6ff5934a238
+      AMI: ami-0f42d8c4eb586ccf7
     us-west-2:
-      AMI: ami-03804ed633fe58109
+      AMI: ami-0a7d051a1c4b54f65
 
 Resources:
   # VPS
@@ -377,7 +380,7 @@ Resources:
         - !Ref InstanceSecurityGroup
       UserData:
         Fn::Base64: !Sub |
-          #!/bin/bash
+          #!/bin/bash -x
           apt-get update -y
           apt-get install -y python-setuptools
           mkdir -p /opt/aws/bin
@@ -474,14 +477,12 @@ Resources:
             01_add_repository_key:
               command: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
             02_add_repository:
-              command: add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+              command: add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
             03_update_apt_get:
               command: apt-get update
             04_install_docker:
               command: apt-get install -y docker-ce
-            05_add_docker_group:
-              command: groupadd docker
-            06_add_ubuntu_to_group:
+            05_add_ubuntu_to_group:
               command: usermod -aG docker ubuntu
 
         install_node:
@@ -497,52 +498,6 @@ Resources:
               command: apt-get install -y nginx
 
         install_hydra:
-          files:
-            /etc/nginx/sites-available/hydra-public.conf:
-              content: !Sub |
-                server {
-                    listen 80;
-                    server_name ${HydraPublicDomainName};
-
-                    if ($http_x_forwarded_proto != 'https') {
-                        rewrite ^ https://$host$request_uri? permanent;
-                    }
-
-                    location / {
-                        if ($request_method = 'OPTIONS') {
-                            add_header 'Access-Control-Allow-Origin' '*';
-                            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-                            add_header 'Access-Control-Allow-Credentials' 'true';
-                            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
-                            add_header 'Access-Control-Max-Age' 1728000;
-                            add_header 'Content-Type' 'text/plain; charset=utf-8';
-                            add_header 'Content-Length' 0;
-                            return 204;
-                        }
-
-                        if ($request_method = 'POST') {
-                            add_header 'Access-Control-Allow-Origin' '*';
-                            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-                            add_header 'Access-Control-Allow-Credentials' 'true';
-                            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
-                            add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
-                        }
-
-                        if ($request_method = 'GET') {
-                            add_header 'Access-Control-Allow-Origin' '*';
-                            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-                            add_header 'Access-Control-Allow-Credentials' 'true';
-                            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
-                            add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
-                        }
-
-                        proxy_pass http://127.0.0.1:9000;
-                        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
-                    }
-                }
-              mode: "000644"
-              owner: root
-              group: root
           packages:
             apt:
               pwgen: []
@@ -554,23 +509,27 @@ Resources:
             03_create_oidc_salt:
               command: echo "OIDC_SALT=$(pwgen -s 32 1)" >> /etc/hydra-secrets.env
             04_create_database_url:
-              command: env $(cat /etc/hydra-secrets.env | xargs) echo "POSTGRES_URL=postgres://hydra:$POSTGRES_SECRET@ory-postgres:5432/hydra?sslmode=disable" >> /etc/hydra-secrets.env
+              command: env $(cat /etc/hydra-secrets.env | xargs) bash -c 'echo "POSTGRES_URL=postgres://hydra:$POSTGRES_SECRET@ory-postgres:5432/hydra?sslmode=disable" >> /etc/hydra-secrets.env'
             04_setup_internal_host:
               command: echo "127.0.0.1 hydra-admin.local" >> /etc/hosts
             05_create_hydra_network:
               command: docker network create hydra
             06_install_postgres:
               command: !Sub |
-                env $(cat /etc/hydra-secrets.env | xargs) docker run \
+                env $(cat /etc/hydra-secrets.env | xargs) bash -c 'docker run \
                   --network hydra \
                   --name ory-postgres \
                   --restart always \
                   -e POSTGRES_USER=hydra \
                   -e POSTGRES_PASSWORD=$POSTGRES_SECRET \
                   -e POSTGRES_DB=hydra \
-                  -d postgres:9.6
+                  -d postgres:9.6 \
+                '
 
         update_hydra:
+          packages:
+            apt:
+              apache2-utils: []
           files:
             /etc/nginx/sites-available/hydra-public.conf:
               content: !Sub |
@@ -673,15 +632,17 @@ Resources:
               owner: root
               group: root
           commands:
-            01_pull_hydra:
-              command: docker pull oryd/hydra:v1.1.1
-            02_migrate_database:
-              command: env $(cat /etc/hydra-secrets.env | xargs) docker run --rm --network hydra oryd/hydra:v1.1.1 migrate sql --yes $POSTGRES_URL
-            03_remove_hydra:
+            01_stop_hydra:
+              command: docker stop ory-hydra || true
+            02_remove_hydra:
               command: docker rm ory-hydra || true
-            04_start_hydra:
+            03_pull_hydra:
+              command: docker pull oryd/hydra:v1.1.1
+            04_migrate_database:
+              command: env $(cat /etc/hydra-secrets.env | xargs) bash -c 'docker run --rm --network hydra oryd/hydra:v1.1.1 migrate sql "$POSTGRES_URL" --yes'
+            05_start_hydra:
               command: !Sub |
-                docker run -d \
+                env $(cat /etc/hydra-secrets.env | xargs) bash -c 'docker run -d \
                   --name ory-hydra \
                   --network hydra \
                   --restart always \
@@ -697,10 +658,14 @@ Resources:
                   -e URLS_ERROR=https://${OryFmDomainName}/error \
                   -e OIDC_SUBJECT_IDENTIFIERS_SUPPORTED=public,pairwise \
                   -e OIDC_SUBJECT_IDENTIFIERS_PAIRWISE_SALT=$OIDC_SALT \
-                  oryd/hydra:v1.1.1 serve all
-            05_create_htpasswd:
-              command: aws --region ${AWS::Region} secretsmanager get-secret-value --secret-id ${HydraAdminSecret} | htpasswd -ci /etc/hydra-admin.htpasswd admin
-            05_reload_nginx:
+                  oryd/hydra:v1.1.1 serve all \
+                '
+            06_create_htpasswd:
+              command: !Sub |
+                /root/.local/bin/aws secretsmanager get-secret-value --region ${AWS::Region} \
+                  --secret-id ${HydraAdminSecret} --query SecretString --output text \
+                  | htpasswd -ci /etc/hydra-admin.htpasswd admin
+            07_reload_nginx:
               command: systemctl reload nginx
 
         install_oryfm:
@@ -709,8 +674,6 @@ Resources:
               git: []
           users:
             oryfm:
-              groups:
-                - oryfm
               homeDir:
                 /opt/oryfm
           commands:
@@ -719,21 +682,22 @@ Resources:
             02_chown_directory:
               command: chown oryfm:oryfm /opt/oryfm
             03_clone:
-              command: runuser -l oryfm -c 'git clone https://github.com/soliantconsulting/oryfm.git /opt/oryfm'
+              command: runuser -l -s /bin/bash oryfm -c 'git clone https://github.com/soliantconsulting/oryfm.git /opt/oryfm/server'
 
         update_and_build_oryfm:
           files:
-            /var/www/oryfm/.env:
+            /opt/oryfm/server/.env:
               content: !Sub |
-                FILEMAKER_URL=${FilemakerUrl}
-                FILEMAKER_DATABASE=${FilemakerDatabase}
-                FILEMAKER_USERNAME=${FilemakerUsername}
-                FILEMAKER_PASSWORD=${FilemakerPassword}
+                FILEMAKER_URL=${FileMakerUrl}
+                FILEMAKER_DATABASE=${FileMakerDatabase}
+                FILEMAKER_USERNAME=${FileMakerUsername}
+                FILEMAKER_PASSWORD=${FileMakerPassword}
+                FILEMAKER_LAYOUT=${FileMakerLayout}
                 LOGIN_DEFAULT_REMEMBER_TIME=${OryFmDefaultLoginRememberTime}
                 LOGIN_USER_REMEMBER_TIME=${OryFmUserLoginRememberTime}
                 CONSENT_DEFAULT_REMEMBER_TIME=${OryFmDefaultConsentRememberTime}
                 CONSENT_USER_REMEMBER_TIME=${OryFmUserConsentRememberTime}
-                HYDRA_ADMIN_URL=http://hydra-admin.local:
+                HYDRA_ADMIN_URL=http://hydra-admin.local
                 THEME_CSS_URL=${OryFmThemeCssUrl}
                 AUTHENTICATION_METHOD=${OryFmAuthenticationMethod}
                 TEST_MODE=${OryFmTestMode}
@@ -749,8 +713,8 @@ Resources:
                 [Service]
                 Type=simple
                 User=oryfm
-                WorkingDirectory=/opt/oryfm
-                ExecStart=/usr/bin/node /var/www/oryfm/dist/serve.js
+                WorkingDirectory=/opt/oryfm/server
+                ExecStart=/usr/bin/node /opt/oryfm/server/dist/serve.js
                 Restart=on-failure
 
                 [Install]
@@ -780,12 +744,12 @@ Resources:
               mode: "120644"
               owner: root
               group: root
-            /usr/local/bin/update-custom-labels.sh
+            /usr/local/bin/update-custom-labels.sh:
               content: !Sub |
                 #!/bin/bash
 
                 URL="${OryFmCustomLabelsUrl}"
-                TARGET="/opt/oryfm/custom-labels.json"
+                TARGET="/opt/oryfm/server/custom-labels.json"
 
                 if [ -z "$URL" ]
                 then
@@ -799,16 +763,13 @@ Resources:
               group: root
           commands:
             01_update:
-              command: runuser -l oryfm -c 'git pull'
-              cwd: /opt/oryfm
+              command: runuser -s /bin/bash -l oryfm -c 'cd /opt/oryfm/server && git pull'
             02_install:
-              command: runuser -l oryfm -c 'npm install'
-              cwd: /opt/oryfm
+              command: runuser -s /bin/bash -l oryfm -c 'cd /opt/oryfm/server && npm install'
             03_build:
-              command: runuser -l oryfm -c 'npm run build'
-              cwd: /opt/oryfm
+              command: runuser -s /bin/bash -l oryfm -c 'cd /opt/oryfm/server && npm run build'
             04_update_custom_labels:
-              command: runuser -l oryfm -c 'update-custom-labels.sh'
+              command: runuser -s /bin/bash -l oryfm -c 'update-custom-labels.sh'
             05_reload_daemon:
               command: systemctl daemon-reload
             06_enable_daemon:
