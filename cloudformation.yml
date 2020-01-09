@@ -701,6 +701,7 @@ Resources:
                 THEME_CSS_URL=${OryFmThemeCssUrl}
                 AUTHENTICATION_METHOD=${OryFmAuthenticationMethod}
                 TEST_MODE=${OryFmTestMode}
+                NODE_ENV=production
               mode: "000644"
               owner: oryfm
               group: oryfm
