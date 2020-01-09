@@ -43,7 +43,7 @@ app.use((request, response, next) => {
     next(createError(404));
 });
 
-app.use((error : any, request : express.Request, response : express.Response) => {
+app.use((error : any, request : express.Request, response : express.Response, next : express.NextFunction) => {
     response.status(error.status || 500);
     response.render('error', {
         message: error.message,
