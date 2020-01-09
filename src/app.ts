@@ -9,6 +9,7 @@ import {cl} from './utils';
 import loginRouter from './routes/login';
 import consentRouter from './routes/consent';
 import logoutRouter from './routes/logout';
+import errorRouter from './routes/error';
 import passwordReset from './routes/password-reset';
 
 const app = express();
@@ -32,6 +33,7 @@ app.use(csrf({cookie: true}));
 app.use('/login', loginRouter);
 app.use('/consent', consentRouter);
 app.use('/logout', logoutRouter);
+app.use('/error', errorRouter);
 
 if (process.env.AUTHENTICATION_METHOD !== 'basic-auth') {
     app.use('/password-reset', passwordReset);
@@ -42,11 +44,11 @@ app.use((request, response, next) => {
 });
 
 app.use((error : any, request : express.Request, response : express.Response) => {
-    response.locals.message = error.message;
-    response.locals.error = request.app.get('env') === 'development' ? error : {};
-
     response.status(error.status || 500);
-    response.render('error');
+    response.render('error', {
+        message: error.message,
+        error: request.app.get('env') === 'development' ? error : {},
+    });
 });
 
 export default app;
