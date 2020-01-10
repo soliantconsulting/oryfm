@@ -105,11 +105,9 @@ Parameters:
   OryFmThemeCssUrl:
     Description: Optional URL for custom OryFM theme
     Type: String
-    AllowedPattern: (|https?://(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9]))
   OryFmCustomLabelsUrl:
     Description: Optional URL for custom labels
     Type: String
-    AllowedPattern: (|https?://(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9]))
   OryFmAuthenticationMethod:
     Description: Whether to run OryFM in test mode
     Type: String
@@ -750,16 +748,50 @@ Resources:
                 #!/bin/bash
 
                 URL="${OryFmCustomLabelsUrl}"
+                OLD_SUM="NONE"
+                TMP="/tmp/custom-labels.json"
                 TARGET="/opt/oryfm/server/custom-labels.json"
 
-                if [ -z "$URL" ]
+                if [ -f "$TARGET" ]
                 then
-                  rm -f "$TARGET"
-                  exit
+                  OLD_SUM=$(md5sum "$TARGET" | awk '{ print $1 }')
                 fi
 
-                wget -O "$TARGET" "$URL"
+                if [ -z "$URL" ]
+                  then
+                  rm -f "$TARGET"
+
+                  if [ "$OLD_SUM" != "NONE" ]
+                  then
+                    systemctl restart oryfm
+                  fi
+
+                  exit 0
+                fi
+
+                curl "$URL" -o "$TMP"
+
+                if [ $? != 0 ]
+                  then
+                  exit 0
+                fi
+
+                NEW_SUM=$(md5sum "$TMP" | awk '{ print $1 }')
+
+                if [ "$OLD_SUM" != "$NEW_SUM" ]
+                then
+                  cp -a "$TMP" "$TARGET"
+                  rm -f "$TMP"
+                  chown portal:portal "$TARGET"
+                  systemctl restart oryfm
+                fi
               mode: "000755"
+              owner: root
+              group: root
+            /etc/cron.d/update-custom-labels:
+              content: !Sub |
+                */15 * * * * root /usr/local/bin/update-custom-labels.sh
+              mode: "000644"
               owner: root
               group: root
           commands:
@@ -769,16 +801,16 @@ Resources:
               command: runuser -s /bin/bash -l oryfm -c 'cd /opt/oryfm/server && npm install'
             03_build:
               command: runuser -s /bin/bash -l oryfm -c 'cd /opt/oryfm/server && npm run build'
-            04_update_custom_labels:
-              command: runuser -s /bin/bash -l oryfm -c 'update-custom-labels.sh'
-            05_reload_daemon:
+            04_reload_daemon:
               command: systemctl daemon-reload
-            06_enable_daemon:
+            05_enable_daemon:
               command: systemctl enable oryfm
-            07_restart_daemon:
+            06_restart_daemon:
               command: systemctl restart oryfm
-            08_reload_nginx:
+            07_reload_nginx:
               command: systemctl reload nginx
+            08_force_update_custom_labels:
+              command: /usr/local/bin/update-custom-labels.sh
 
 Outputs:
   SSH:
