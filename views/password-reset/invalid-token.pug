@@ -10,4 +10,7 @@ block content
                 a(href=client.metadata.application_login_uri)= cl('Return to home screen')
 
         p.text-center
-            a(href="/reset-password/request/" + client.client_id)= cl('Reset your password')
+            a(
+                href="/reset-password/request/" + client.client_id
+                class="btn btn-primary float-right"
+            )= cl('Reset your password')
