@@ -10,7 +10,7 @@ import loginRouter from './routes/login';
 import consentRouter from './routes/consent';
 import logoutRouter from './routes/logout';
 import errorRouter from './routes/error';
-import passwordReset from './routes/password-reset';
+import passwordResetRouter from './routes/password-reset';
 
 const app = express();
 
@@ -36,7 +36,7 @@ app.use('/logout', logoutRouter);
 app.use('/error', errorRouter);
 
 if (process.env.AUTHENTICATION_METHOD !== 'basic-auth') {
-    app.use('/password-reset', passwordReset);
+    app.use('/password-reset', passwordResetRouter);
 }
 
 app.use((request, response, next) => {
