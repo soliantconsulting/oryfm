@@ -5,5 +5,5 @@ block content
     div.card-body
         div(class="alert alert-success")= cl('Your new password has been setup successfully.')
 
-        if client.metadata.application_url
-            a(class="btn btn-primary float-right" href=client.metadata.application_url)= cl('Continue')
+        if client.metadata.application_login_uri
+            a(class="btn btn-primary float-right" href=client.metadata.application_login_uri)= cl('Continue')

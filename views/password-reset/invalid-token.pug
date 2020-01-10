@@ -5,9 +5,9 @@ block content
     div.card-body
         p= cl('The requested link is either expired or invalid.')
 
-        if client.metadata.application_url
+        if client.metadata.application_login_uri
             p.text-center
-                a(href=client.metadata.application_url)= cl('Return to home screen')
+                a(href=client.metadata.application_login_uri)= cl('Return to home screen')
 
         p.text-center
             a(href="/reset-password/request/" + client.client_id)= cl('Reset your password')

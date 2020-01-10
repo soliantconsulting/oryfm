@@ -3,8 +3,8 @@ import fs from 'fs';
 import url from 'url';
 
 export const absoluteUrl = (request : Request, pathname : string) => url.format({
-    protocol: request.protocol,
-    host: request.get('host'),
+    protocol: request.get('x-forwarded-proto') || request.protocol,
+    host: request.get('x-forwarded-host') || request.get('host'),
     pathname,
 });
 
