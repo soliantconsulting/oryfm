@@ -12,17 +12,15 @@ Metadata:
           - InstanceType
           - KeyName
       - Label:
-          default: "VPC Configuration"
-        Parameters:
-          - VpcCidr
-          - FirstPublicSubnetCidr
-          - SecondPublicSubnetCidr
-      - Label:
           default: "Domain Configuration"
         Parameters:
           - OryFmDomainName
           - HydraPublicDomainName
           - HydraAdminDomainName
+      - Label:
+          default: "Let's Encrypt"
+        Parameters:
+          - LetsEncryptEmailAddress
       - Label:
           default: "OryFM Configuration"
         Parameters:
@@ -54,24 +52,6 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
     ConstraintDescription: Can contain only ASCII characters.
 
-  VpcCidr:
-    Type: String
-    AllowedPattern: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:2[0-8]|1[6-9])$'
-    Description: CIDR for VPC
-    Default: 10.0.61.0/22
-
-  FirstPublicSubnetCidr:
-    Type: String
-    AllowedPattern: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:2[0-8]|1[6-9])$'
-    Description: CIDR for first public subnet
-    Default: 10.0.61.0/26
-
-  SecondPublicSubnetCidr:
-    Type: String
-    AllowedPattern: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/(?:2[0-8]|1[6-9])$'
-    Description: CIDR for second public subnet
-    Default: 10.0.61.64/26
-
   OryFmDomainName:
     Type: String
     AllowedPattern: (([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])
@@ -81,6 +61,9 @@ Parameters:
   HydraAdminDomainName:
     Type: String
     AllowedPattern: (([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])
+
+  LetsEncryptEmailAddress:
+    Type: String
 
   OryFmDefaultLoginRememberTime:
     Description: How long to remember login when user doesn't check box (set to 0 to disable)
@@ -153,7 +136,7 @@ Resources:
   Vpc:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: !Ref VpcCidr
+      CidrBlock: 10.0.61.0/22
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -171,7 +154,7 @@ Resources:
       AvailabilityZone: !Select
         - 0
         - Fn::GetAZs: !Ref AWS::Region
-      CidrBlock: !Ref FirstPublicSubnetCidr
+      CidrBlock: 10.0.61.0/26
       MapPublicIpOnLaunch: true
 
   SecondPublicSubnet:
@@ -181,7 +164,7 @@ Resources:
       AvailabilityZone: !Select
         - 1
         - Fn::GetAZs: !Ref AWS::Region
-      CidrBlock: !Ref SecondPublicSubnetCidr
+      CidrBlock: 10.0.61.64/26
       MapPublicIpOnLaunch: true
 
   PublicSubnetsRouteTable:
@@ -207,91 +190,6 @@ Resources:
       RouteTableId: !Ref PublicSubnetsRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
-
-  # ALB
-  LoadBalancer:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      IpAddressType: ipv4
-      Subnets:
-        - !Ref FirstPublicSubnet
-        - !Ref SecondPublicSubnet
-      SecurityGroups:
-        - !Ref LoadBalancerSecurityGroup
-
-  LoadBalancerSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Public access to ALB
-      VpcId: !Ref Vpc
-      SecurityGroupIngress:
-        - CidrIp: 0.0.0.0/0
-          IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-        - CidrIp: 0.0.0.0/0
-          IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-
-  LoadBalancerTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Port: 80
-      Protocol: HTTP
-      TargetType: instance
-      VpcId: !Ref Vpc
-      Targets:
-        - Id: !Ref WebInstance
-
-  LoadBalancerHttpListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref LoadBalancer
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref LoadBalancerTargetGroup
-      Port: 80
-      Protocol: HTTP
-
-  LoadBalancerHttpsListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref LoadBalancer
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref LoadBalancerTargetGroup
-      Port: 443
-      Protocol: HTTPS
-      Certificates:
-        - CertificateArn: !Ref OryFmCertificate
-
-  LoadBalancerListenerCertificates:
-    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
-    Properties:
-      ListenerArn: !Ref LoadBalancerHttpsListener
-      Certificates:
-        - CertificateArn: !Ref HydraPublicCertificate
-        - CertificateArn: !Ref HydraAdminCertificate
-
-  # Certificates
-  OryFmCertificate:
-    Type: AWS::CertificateManager::Certificate
-    Properties:
-      DomainName: !Ref OryFmDomainName
-      ValidationMethod: DNS
-
-  HydraPublicCertificate:
-    Type: AWS::CertificateManager::Certificate
-    Properties:
-      DomainName: !Ref HydraPublicDomainName
-      ValidationMethod: DNS
-
-  HydraAdminCertificate:
-    Type: AWS::CertificateManager::Certificate
-    Properties:
-      DomainName: !Ref HydraAdminDomainName
-      ValidationMethod: DNS
 
   # Secrets
   HydraAdminSecret:
@@ -342,9 +240,16 @@ Resources:
       GroupDescription: Access to host
       VpcId: !Ref Vpc
       SecurityGroupIngress:
-        # Free access for ALB
-        - IpProtocol: -1
-          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        # Public HTTP access
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        # Public HTTPS access
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
         # Public SSH access
         - IpProtocol: tcp
           FromPort: 22
@@ -405,13 +310,17 @@ Resources:
             - install_docker
             - install_node
             - install_nginx
+            - install_certbot
             - install_hydra
             - update_hydra
             - install_oryfm
             - update_and_build_oryfm
+            - install_cert_tools
+            - run_cert_tools
           update:
             - update_hydra
             - update_and_build_oryfm
+            - run_cert_tools
 
         install_aws_cli:
           packages:
@@ -495,6 +404,20 @@ Resources:
             01_install:
               command: apt-get install -y nginx
 
+        install_certbot:
+          packages:
+            apt:
+              software-properties-common: []
+          commands:
+            01_add_universe:
+              command: add-apt-repository universe
+            02_add_repository:
+              command: add-apt-repository ppa:certbot/certbot
+            03_update_apt_get:
+              command: apt-get update
+            04_install_certbot:
+              command: apt-get install -y certbot python-certbot-nginx
+
         install_hydra:
           packages:
             apt:
@@ -534,10 +457,6 @@ Resources:
                 server {
                     listen 80;
                     server_name ${HydraPublicDomainName};
-
-                    if ($http_x_forwarded_proto != 'https') {
-                        rewrite ^ https://$host$request_uri? permanent;
-                    }
 
                     location / {
                         if ($request_method = 'OPTIONS') {
@@ -584,10 +503,6 @@ Resources:
                 server {
                     listen 80;
                     server_name ${HydraAdminDomainName};
-
-                    if ($http_x_forwarded_proto != 'https') {
-                        rewrite ^ https://$host$request_uri? permanent;
-                    }
 
                     location /clients {
                         auth_basic 'Client Administration';
@@ -665,6 +580,12 @@ Resources:
                   | htpasswd -ci /etc/hydra-admin.htpasswd admin
             07_reload_nginx:
               command: systemctl reload nginx
+            08_install_hydra_public_cert:
+              command: !Sub |
+                certbot install -n --nginx --redirect --cert-name ${HydraPublicDomainName} || true
+            09_install_hydra_admin_cert:
+              command: !Sub |
+                certbot install -n --nginx --redirect --cert-name ${HydraAdminDomainName} || true
 
         install_oryfm:
           packages:
@@ -726,10 +647,6 @@ Resources:
                 server {
                   listen 80;
                   server_name ${OryFmDomainName};
-
-                  if ($http_x_forwarded_proto != 'https') {
-                    rewrite ^ https://$host$request_uri? permanent;
-                  }
 
                   location / {
                     proxy_set_header X-Forwarded-Host $host;
@@ -812,8 +729,83 @@ Resources:
               command: systemctl reload nginx
             08_force_update_custom_labels:
               command: /usr/local/bin/update-custom-labels.sh
+            09_install_cert:
+              command: !Sub |
+                certbot install -n --nginx --redirect --cert-name ${OryFmDomainName} || true
+
+        install_cert_tools:
+          packages:
+            apt:
+              dnsutils: []
+          files:
+            /usr/local/sbin/cert-register:
+              content: !Sub |
+                #!/bin/bash
+                domain=$1
+
+                until certbot -n -m "bscholzen@soliantconsulting.com" --agree-tos --redirect --nginx -d $domain
+                do
+                  echo "Sleeping for 120 seconds"
+                  sleep 120
+                done
+              mode: "000755"
+              owner: root
+              group: root
+            /usr/local/sbin/cert-update:
+              content: !Sub |
+                #!/bin/bash
+                domains=("$@")
+                existingDomains=()
+
+                if [[ -d "/etc/letsencrypt/live" ]]; then
+                  for path in /etc/letsencrypt/live/*/; do
+                    domain=$(basename -- "$path")
+                    existingDomains+=("$domain")
+                  done
+                fi
+
+                for existingDomain in "${!existingDomains[@]}"; do
+                  exists="false"
+
+                  for domain in "${!domains[@]}"; do
+                    if [[ "$domain" == "$existingDomain" ]]; then
+                      exists="true"
+                      break
+                    fi
+                  done
+
+                  if [[ $exists == "false" ]]; then
+                    certbot delete --cert-name $existingDomain
+                  fi
+                done
+
+                for domain in "${!domains[@]}"; do
+                  exists="false"
+
+                  for existingDomain in "${!existingDomains[@]}"; do
+                    if [[ "$domain" == "$existingDomain" ]]; then
+                      exists="true"
+                      break
+                    fi
+                  done
+
+                  if [[ $exists == "false" ]]; then
+                    echo "Running cert-register for $domain"
+                    /usr/local/sbin/cert-register $domain
+                  else
+                    echo "No update for $domain required"
+                  fi
+                done
+              mode: "000755"
+              owner: root
+              group: root
+
+        run_cert_tools:
+          commands:
+            01_run_cert_update:
+              command: /usr/local/sbin/cert-update ${HydraPublicDomainName} ${HydraAdminDomainName} ${OryFmDomainName} &
 
 Outputs:
-  SSH:
+  InstanceIp:
     Value: !Ref InstanceIp
-    Description: "SSH access IP (User: ubuntu)"
+    Description: "Instance IP"
