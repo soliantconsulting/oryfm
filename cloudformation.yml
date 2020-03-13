@@ -427,9 +427,7 @@ Resources:
               command: echo "POSTGRES_SECRET=$(pwgen -s 32 1)" >> /etc/hydra-secrets.env
             02_create_system_secret:
               command: echo "SYSTEM_SECRET=$(pwgen -s 32 1)" >> /etc/hydra-secrets.env
-            03_create_oidc_salt:
-              command: echo "OIDC_SALT=$(pwgen -s 32 1)" >> /etc/hydra-secrets.env
-            04_create_database_url:
+            03_create_database_url:
               command: env $(cat /etc/hydra-secrets.env | xargs) bash -c 'echo "POSTGRES_URL=postgres://hydra:$POSTGRES_SECRET@ory-postgres:5432/hydra?sslmode=disable" >> /etc/hydra-secrets.env'
             04_setup_internal_host:
               command: echo "127.0.0.1 hydra-admin.local" >> /etc/hosts
@@ -459,35 +457,8 @@ Resources:
                     server_name ${HydraPublicDomainName};
 
                     location / {
-                        if ($request_method = 'OPTIONS') {
-                            add_header 'Access-Control-Allow-Origin' '*';
-                            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-                            add_header 'Access-Control-Allow-Credentials' 'true';
-                            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
-                            add_header 'Access-Control-Max-Age' 1728000;
-                            add_header 'Content-Type' 'text/plain; charset=utf-8';
-                            add_header 'Content-Length' 0;
-                            return 204;
-                        }
-
-                        if ($request_method = 'POST') {
-                            add_header 'Access-Control-Allow-Origin' '*';
-                            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-                            add_header 'Access-Control-Allow-Credentials' 'true';
-                            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
-                            add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
-                        }
-
-                        if ($request_method = 'GET') {
-                            add_header 'Access-Control-Allow-Origin' '*';
-                            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
-                            add_header 'Access-Control-Allow-Credentials' 'true';
-                            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range';
-                            add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range';
-                        }
-
                         proxy_pass http://127.0.0.1:9000;
-                        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+                        proxy_set_header X-Forwarded-Proto $scheme;
                     }
                 }
               mode: "000644"
@@ -509,12 +480,12 @@ Resources:
                         auth_basic_user_file /etc/hydra-admin.htpasswd;
 
                         proxy_pass http://127.0.0.1:9001/clients;
-                        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+                        proxy_set_header X-Forwarded-Proto $scheme;
                     }
 
                     location /oauth2/introspect {
                         proxy_pass http://127.0.0.1:9001/oauth2/introspect;
-                        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+                        proxy_set_header X-Forwarded-Proto $scheme;
                     }
                 }
               mode: "000644"
@@ -550,9 +521,9 @@ Resources:
             02_remove_hydra:
               command: docker rm ory-hydra || true
             03_pull_hydra:
-              command: docker pull oryd/hydra:v1.1.1
+              command: docker pull oryd/hydra:v1.3
             04_migrate_database:
-              command: env $(cat /etc/hydra-secrets.env | xargs) bash -c 'docker run --rm --network hydra oryd/hydra:v1.1.1 migrate sql "$POSTGRES_URL" --yes'
+              command: env $(cat /etc/hydra-secrets.env | xargs) bash -c 'docker run --rm --network hydra oryd/hydra:v1.3 migrate sql "$POSTGRES_URL" --yes'
             05_start_hydra:
               command: !Sub |
                 env $(cat /etc/hydra-secrets.env | xargs) bash -c 'docker run -d \
@@ -562,6 +533,7 @@ Resources:
                   -p 127.0.0.1:9000:4444 \
                   -p 127.0.0.1:9001:4445 \
                   -e SERVE_TLS_ALLOW_TERMINATION_FROM=172.18.0.0/16 \
+                  -e SERVE_PUBLIC_CORS_ENABLED=true \
                   -e SECRETS_SYSTEM=$SYSTEM_SECRET \
                   -e DSN=$POSTGRES_URL \
                   -e URLS_SELF_ISSUER=https://${HydraPublicDomainName}/ \
@@ -569,9 +541,7 @@ Resources:
                   -e URLS_LOGIN=https://${OryFmDomainName}/login \
                   -e URLS_LOGOUT=https://${OryFmDomainName}/logout \
                   -e URLS_ERROR=https://${OryFmDomainName}/error \
-                  -e OIDC_SUBJECT_IDENTIFIERS_SUPPORTED=public,pairwise \
-                  -e OIDC_SUBJECT_IDENTIFIERS_PAIRWISE_SALT=$OIDC_SALT \
-                  oryd/hydra:v1.1.1 serve all \
+                  oryd/hydra:v1.3 serve all \
                 '
             06_create_htpasswd:
               command: !Sub |
@@ -803,7 +773,8 @@ Resources:
         run_cert_tools:
           commands:
             01_run_cert_update:
-              command: /usr/local/sbin/cert-update ${HydraPublicDomainName} ${HydraAdminDomainName} ${OryFmDomainName} &
+              command: !Sub |
+                start-stop-daemon -Sbx /usr/local/sbin/cert-update -- ${HydraPublicDomainName} ${HydraAdminDomainName} ${OryFmDomainName} &
 
 Outputs:
   InstanceIp:
