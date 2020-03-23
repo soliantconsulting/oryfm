@@ -31,15 +31,15 @@ setup()
     read -p "FileMaker Database: " fileMakerDatabase
     read -p "FileMaker Username: " fileMakerUsername
     read -s -p "FileMaker Password: " fileMakerPassword
+    read -s -p "FileMaker Layout: " fileMakerLayout
 
     echo "FILEMAKER_URL=$fileMakerUrl" > .env
     echo "FILEMAKER_DATABASE=$fileMakerDatabase" >> .env
     echo "FILEMAKER_USERNAME=$fileMakerUsername" >> .env
     echo "FILEMAKER_PASSWORD=$fileMakerPassword" >> .env
+    echo "FILEMAKER_LAYOUT=$fileMakerLayout" >> .env
 
-    echo "LOGIN_DEFAULT_REMEMBER_TIME=900" >> .env
     echo "LOGIN_USER_REMEMBER_TIME=2592000" >> .env
-    echo "CONSENT_DEFAULT_REMEMBER_TIME=900" >> .env
     echo "CONSENT_USER_REMEMBER_TIME=2592000" >> .env
 
     echo "HYDRA_ADMIN_URL=http://localhost:4445" >> .env

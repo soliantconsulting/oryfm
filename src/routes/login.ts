@@ -1,13 +1,13 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
+import argon2, {argon2id} from 'argon2';
 import {body, sanitizeBody, validationResult} from 'express-validator';
-import {authenticateUser, getUser} from '../services/filemaker';
+import {authenticateUser, getUser, setPassword} from '../services/filemaker';
 import {AcceptLoginRequest, acceptLoginRequest, getLoginRequest, LoginRequest} from '../services/hydra';
 import {cl} from '../utils';
 
 const router = express.Router();
 
-const defaultRememberTime = parseInt(process.env.LOGIN_DEFAULT_REMEMBER_TIME, 10);
 const userRememberTime = parseInt(process.env.LOGIN_USER_REMEMBER_TIME, 10);
 
 router.get('/', async (request, response, next) => {
@@ -26,6 +26,25 @@ router.get('/', async (request, response, next) => {
         next(e);
     }
 });
+
+const verifyPassword = (password : string, passwordHash : string) => {
+    if (passwordHash.startsWith('$2b$')) {
+        // This is for legacy accounts only. The hash will be migrated to argon2 on success.
+        return bcrypt.compare(password, passwordHash);
+    }
+
+    return argon2.verify(passwordHash, password);
+};
+
+const doesPasswordNeedRehash = (passwordHash : string) => {
+    if (passwordHash.startsWith('$2b$')) {
+        return true;
+    }
+
+    return argon2.needsRehash(passwordHash, {type: argon2id});
+};
+
+export const generatePasswordHash = (password : string) => argon2.hash(password, {type: argon2id});
 
 const identifierValidation = process.env.AUTHENTICATION_METHOD !== 'basic-auth'
     ? body('emailAddress', cl('Valid email address required')).isEmail()
@@ -57,7 +76,7 @@ router.post('/', ...[
         if (process.env.AUTHENTICATION_METHOD !== 'basic-auth') {
             user = await getUser('emailAddress', request.body.emailAddress);
 
-            if (!await bcrypt.compare(request.body.password, user.passwordHash)) {
+            if (!await verifyPassword(request.body.password, user.passwordHash)) {
                 user = undefined;
             }
         } else {
@@ -69,16 +88,16 @@ router.post('/', ...[
             return;
         }
 
+        if (doesPasswordNeedRehash(user.passwordHash)) {
+            await setPassword(user.id, await generatePasswordHash(request.body.password));
+        }
+
         const body : AcceptLoginRequest = {
             subject: user.id,
         };
 
-        if (defaultRememberTime > 0 || (request.body.remember && userRememberTime > defaultRememberTime)) {
-            body.remember = true;
-            body.remember_for = request.body.remember && userRememberTime > defaultRememberTime
-                ? userRememberTime
-                : defaultRememberTime;
-        }
+        body.remember = true;
+        body.remember_for = request.body.remember ? userRememberTime : 0;
 
         const completedRequest = await acceptLoginRequest(challenge, body);
         response.redirect(completedRequest.redirect_to);
@@ -101,7 +120,7 @@ const renderForm = (
     response.render('login', {
         csrfToken: request.csrfToken(),
         challenge,
-        showRememberChoice: userRememberTime > defaultRememberTime,
+        showRememberChoice: userRememberTime > 0,
         client: loginRequest.client,
         errors,
     });

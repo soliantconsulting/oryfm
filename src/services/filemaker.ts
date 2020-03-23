@@ -189,3 +189,7 @@ export const validatePasswordResetToken = async (resetToken : string) : Promise<
 export const resetPassword = async (resetToken : string, passwordHash : string) : Promise<boolean> => {
     return (await fileMaker.execute('resetPasswordHash', {resetToken, passwordHash})).result;
 };
+
+export const setPassword = async (userId : string, passwordHash : string) : Promise<boolean> => {
+    return (await fileMaker.execute('setPasswordHash', {userId, passwordHash})).result;
+};
