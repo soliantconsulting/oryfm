@@ -1,9 +1,9 @@
 import express from 'express';
-import bcrypt from 'bcrypt';
 import {body, validationResult} from 'express-validator';
 import {requestPasswordResetLink, resetPassword, validatePasswordResetToken} from '../services/filemaker';
 import {getClient, OAuth2Client} from '../services/hydra';
 import {absoluteUrl, cl} from '../utils';
+import {generatePasswordHash} from './login';
 
 const testMode = Boolean(process.env.TEST_MODE);
 
@@ -97,7 +97,7 @@ router.post('/set/:clientId/:token', ...[
             return;
         }
 
-        const passwordHash = await bcrypt.hash(request.body.password, 10);
+        const passwordHash = await generatePasswordHash(request.body.password);
         const result = resetPassword(request.params.token, passwordHash);
 
         if (!result) {

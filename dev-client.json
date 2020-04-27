@@ -16,7 +16,7 @@
         "token" ,
         "token id_token"
     ] ,
-    "scope":  "openid email profile",
+    "scope": "openid email profile",
     "metadata": {
         "application_login_uri": "http://localhost:12345/login",
         "first_party_client": true

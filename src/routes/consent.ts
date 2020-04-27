@@ -12,7 +12,6 @@ import {cl} from '../utils';
 
 const router = express.Router();
 
-const defaultRememberTime = parseInt(process.env.CONSENT_DEFAULT_REMEMBER_TIME, 10);
 const userRememberTime = parseInt(process.env.CONSENT_USER_REMEMBER_TIME, 10);
 
 router.get('/', async (request, response, next) => {
@@ -23,7 +22,7 @@ router.get('/', async (request, response, next) => {
         if (consentRequest.skip || consentRequest.client.metadata.first_party_client) {
             const completedRequest = await acceptConsentRequest(
                 challenge,
-                await createAcceptConsentRequest(consentRequest, false)
+                await createAcceptConsentRequest(consentRequest, !consentRequest.skip)
             );
             response.redirect(completedRequest.redirect_to);
             return;
@@ -73,7 +72,7 @@ const renderForm = (
         challenge,
         client: consentRequest.client,
         scope: labelScope(consentRequest),
-        showRememberChoice: userRememberTime > defaultRememberTime,
+        showRememberChoice: userRememberTime > 0,
     });
 };
 
@@ -106,12 +105,8 @@ const createAcceptConsentRequest = async (
         grant_access_token_audience: consentRequest.requested_access_token_audience,
     };
 
-    if (defaultRememberTime > 0 || (remember && userRememberTime > defaultRememberTime)) {
-        body.remember = true;
-        body.remember_for = remember && userRememberTime > defaultRememberTime
-            ? userRememberTime
-            : defaultRememberTime;
-    }
+    body.remember = true;
+    body.remember_for = remember ? userRememberTime : 0;
 
     if (Object.entries(idToken).length > 0) {
         body.session = {

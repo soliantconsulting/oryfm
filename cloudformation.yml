@@ -24,9 +24,7 @@ Metadata:
       - Label:
           default: "OryFM Configuration"
         Parameters:
-          - OryFmDefaultLoginRememberTime
           - OryFmUserLoginRememberTime
-          - OryFmDefaultConsentRememberTime
           - OryFmUserConsentRememberTime
           - OryFmThemeCssUrl
           - OryFmCustomLabelsUrl
@@ -65,21 +63,11 @@ Parameters:
   LetsEncryptEmailAddress:
     Type: String
 
-  OryFmDefaultLoginRememberTime:
-    Description: How long to remember login when user doesn't check box (set to 0 to disable)
-    Type: Number
-    MinValue: 0
-    Default: 900
   OryFmUserLoginRememberTime:
     Description: How long to remember login when user checks box (set to 0 to disable)
     Type: Number
     MinValue: 0
     Default: 2592000
-  OryFmDefaultConsentRememberTime:
-    Description: How long to remember consent when user doesn't check box (set to 0 to disable)
-    Type: Number
-    MinValue: 0
-    Default: 900
   OryFmUserConsentRememberTime:
     Description: How long to remember consent when user checks box (set to 0 to disable)
     Type: Number
@@ -95,9 +83,9 @@ Parameters:
     Description: Whether to run OryFM in test mode
     Type: String
     AllowedValues:
-      - bcrypt
+      - password-hash
       - basic-auth
-    Default: bcrypt
+    Default: password-hash
   OryFmTestMode:
     Description: Whether to run OryFM in test mode
     Type: String
@@ -582,9 +570,7 @@ Resources:
                 FILEMAKER_USERNAME=${FileMakerUsername}
                 FILEMAKER_PASSWORD=${FileMakerPassword}
                 FILEMAKER_LAYOUT=${FileMakerLayout}
-                LOGIN_DEFAULT_REMEMBER_TIME=${OryFmDefaultLoginRememberTime}
                 LOGIN_USER_REMEMBER_TIME=${OryFmUserLoginRememberTime}
-                CONSENT_DEFAULT_REMEMBER_TIME=${OryFmDefaultConsentRememberTime}
                 CONSENT_USER_REMEMBER_TIME=${OryFmUserConsentRememberTime}
                 HYDRA_ADMIN_URL=http://hydra-admin.local
                 THEME_CSS_URL=${OryFmThemeCssUrl}
@@ -713,7 +699,7 @@ Resources:
                 #!/bin/bash
                 domain=$1
 
-                until certbot -n -m "bscholzen@soliantconsulting.com" --agree-tos --redirect --nginx -d $domain
+                until certbot -n -m "${LetsEncryptEmailAddress}" --agree-tos --redirect --nginx -d $domain
                 do
                   echo "Sleeping for 120 seconds"
                   sleep 120
