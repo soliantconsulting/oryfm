@@ -33,7 +33,11 @@ const verifyPassword = (password : string, passwordHash : string) => {
         return bcrypt.compare(password, passwordHash);
     }
 
-    return argon2.verify(passwordHash, password);
+    try {
+        return argon2.verify(passwordHash, password);
+    } catch (e) {
+        return false;
+    }
 };
 
 const doesPasswordNeedRehash = (passwordHash : string) => {
@@ -41,7 +45,11 @@ const doesPasswordNeedRehash = (passwordHash : string) => {
         return true;
     }
 
-    return argon2.needsRehash(passwordHash, {type: argon2id});
+    try {
+        return argon2.needsRehash(passwordHash, {type: argon2id});
+    } catch (e) {
+        return true;
+    }
 };
 
 export const generatePasswordHash = (password : string) => argon2.hash(password, {type: argon2id});
