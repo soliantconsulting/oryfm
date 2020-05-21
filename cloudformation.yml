@@ -701,8 +701,8 @@ Resources:
 
                 until certbot -n -m "${LetsEncryptEmailAddress}" --agree-tos --redirect --nginx -d $domain
                 do
-                  echo "Sleeping for 120 seconds"
-                  sleep 120
+                  echo "Sleeping for 15 minutes"
+                  sleep 900
                 done
               mode: "000755"
               owner: root
