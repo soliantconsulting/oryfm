@@ -27,14 +27,14 @@ router.get('/', async (request, response, next) => {
     }
 });
 
-const verifyPassword = (password : string, passwordHash : string) => {
+const verifyPassword = async (password : string, passwordHash : string) => {
     if (passwordHash.startsWith('$2b$')) {
         // This is for legacy accounts only. The hash will be migrated to argon2 on success.
         return bcrypt.compare(password, passwordHash);
     }
 
     try {
-        return argon2.verify(passwordHash, password);
+        return await argon2.verify(passwordHash, password);
     } catch (e) {
         return false;
     }
