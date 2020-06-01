@@ -30,6 +30,12 @@ app.use(express.static(path.join(process.cwd(), 'public')));
 app.use(cookieParser());
 app.use(csrf({cookie: true}));
 
+if (process.env.ROOT_REDIRECT_URL) {
+    app.get('/', (request, response) => {
+        response.redirect(process.env.ROOT_REDIRECT_URL);
+    });
+}
+
 app.use('/login', loginRouter);
 app.use('/consent', consentRouter);
 app.use('/logout', logoutRouter);

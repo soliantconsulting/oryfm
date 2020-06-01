@@ -30,6 +30,7 @@ Metadata:
           - OryFmCustomLabelsUrl
           - OryFmAuthenticationMethod
           - OryFmTestMode
+          - OryFmRootRedirectUrl
       - Label:
           default: "FileMaker Configuration"
         Parameters:
@@ -93,6 +94,9 @@ Parameters:
       - true
       - ''
     Default: ''
+  OryFmRootRedirectUrl:
+    Description: Optional URL to redirect to on the root route
+    Type: String
 
   FileMakerUrl:
     Type: String
@@ -576,6 +580,7 @@ Resources:
                 THEME_CSS_URL=${OryFmThemeCssUrl}
                 AUTHENTICATION_METHOD=${OryFmAuthenticationMethod}
                 TEST_MODE=${OryFmTestMode}
+                ROOT_REDIRECT_URL=${OryFmRootRedirectUrl}
                 NODE_ENV=production
               mode: "000644"
               owner: oryfm

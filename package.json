@@ -43,7 +43,7 @@
     "@types/node-fetch": "^2.5.2",
     "@types/pug": "^2.0.4",
     "@types/uuid": "^3.4.5",
-    "concurrently": "^5.0.0",
+    "concurrently": "^5.2.0",
     "nodemon": "^1.19.4",
     "typescript": "^3.6.4"
   }
