@@ -84,7 +84,7 @@ router.post('/', ...[
         if (process.env.AUTHENTICATION_METHOD !== 'basic-auth') {
             user = await getUser('emailAddress', request.body.emailAddress);
 
-            if (!await verifyPassword(request.body.password, user.passwordHash)) {
+            if (!user || !await verifyPassword(request.body.password, user.passwordHash)) {
                 user = undefined;
             }
         } else {
