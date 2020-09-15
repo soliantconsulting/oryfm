@@ -513,9 +513,9 @@ Resources:
             02_remove_hydra:
               command: docker rm ory-hydra || true
             03_pull_hydra:
-              command: docker pull oryd/hydra:v1.3
+              command: docker pull oryd/hydra:v1.7
             04_migrate_database:
-              command: env $(cat /etc/hydra-secrets.env | xargs) bash -c 'docker run --rm --network hydra oryd/hydra:v1.3 migrate sql "$POSTGRES_URL" --yes'
+              command: env $(cat /etc/hydra-secrets.env | xargs) bash -c 'docker run --rm --network hydra oryd/hydra:v1.7 migrate sql "$POSTGRES_URL" --yes'
             05_start_hydra:
               command: !Sub |
                 env $(cat /etc/hydra-secrets.env | xargs) bash -c 'docker run -d \
@@ -533,7 +533,7 @@ Resources:
                   -e URLS_LOGIN=https://${OryFmDomainName}/login \
                   -e URLS_LOGOUT=https://${OryFmDomainName}/logout \
                   -e URLS_ERROR=https://${OryFmDomainName}/error \
-                  oryd/hydra:v1.3 serve all \
+                  oryd/hydra:v1.7 serve all \
                 '
             06_create_htpasswd:
               command: !Sub |
