@@ -134,10 +134,9 @@ are these:
 - `HydraAdminDomainName`: This domain is used by your backend for token validation and to set up new clients. 
 
 The template will set up a complete stack with Hydra and OryFM running in an EC2 instance. It is also setting up HTTPS
-certificates with the help of Let's Encrypt. To do so, it first provisions the machine without certificates, and then
-watches for the domains to become available.
+certificates with the help of CloudFront. During provisioning, you'll need to validate the certificate via ACM. 
 
-Once the machine is provisioned, it will put the generated elastic IP address in the output. You then have to create
+Once the machine has provisioned, it will put the generated elastic IP address in the output. You then have to create
 the appropriate A-records of the three selected domains pointing to that IP address. The service will become available
 once the certificates have been issued.
 
@@ -197,10 +196,8 @@ take immediate effect.
 
 #### Labels
 
-Another parameter you can set is `OryFmCustomLabelsUrl`. This has to point to a publicly available URL which includes a
-JSON object mapping from the default labels to your custom labels. A sample file can be found in this repository under
-`custom-labels.json.dist`. Defining labels there as empty string or omitting them completely will let them default to
-the original value. OryFM will check the labels URL for changes every 15 minutes. 
+In order to customize labels within OryFM, use SSM to connect to the machine and edit the following file:
+`/opt/oryfm/custom-labels.json`. After you've completed your changes, reload oryfm by calling `reload-oryfm` as root.
 
 ## Development
 

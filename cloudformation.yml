@@ -10,7 +10,6 @@ Metadata:
           default: "EC2 Configuration"
         Parameters:
           - InstanceType
-          - KeyName
       - Label:
           default: "Domain Configuration"
         Parameters:
@@ -18,16 +17,11 @@ Metadata:
           - HydraPublicDomainName
           - HydraAdminDomainName
       - Label:
-          default: "Let's Encrypt"
-        Parameters:
-          - LetsEncryptEmailAddress
-      - Label:
           default: "OryFM Configuration"
         Parameters:
           - OryFmUserLoginRememberTime
           - OryFmUserConsentRememberTime
           - OryFmThemeCssUrl
-          - OryFmCustomLabelsUrl
           - OryFmAuthenticationMethod
           - OryFmTestMode
           - OryFmRootRedirectUrl
@@ -46,10 +40,6 @@ Parameters:
     Description: EC2 instance type
     Type: String
     Default: t2.small
-  KeyName:
-    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
-    Type: AWS::EC2::KeyPair::KeyName
-    ConstraintDescription: Can contain only ASCII characters.
 
   OryFmDomainName:
     Type: String
@@ -60,9 +50,6 @@ Parameters:
   HydraAdminDomainName:
     Type: String
     AllowedPattern: (([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])
-
-  LetsEncryptEmailAddress:
-    Type: String
 
   OryFmUserLoginRememberTime:
     Description: How long to remember login when user checks box (set to 0 to disable)
@@ -76,9 +63,6 @@ Parameters:
     Default: 2592000
   OryFmThemeCssUrl:
     Description: Optional URL for custom OryFM theme
-    Type: String
-  OryFmCustomLabelsUrl:
-    Description: Optional URL for custom labels
     Type: String
   OryFmAuthenticationMethod:
     Description: Whether to run OryFM in test mode
@@ -124,64 +108,77 @@ Mappings:
       AMI: ami-0a7d051a1c4b54f65
 
 Resources:
-  # VPS
-  Vpc:
-    Type: AWS::EC2::VPC
+  # CloudFront
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
     Properties:
-      CidrBlock: 10.0.61.0/22
+      DomainName: !Ref OryFmDomainName
+      ValidationMethod: DNS
+      SubjectAlternativeNames:
+        - !Ref HydraPublicDomainName
+        - !Ref HydraAdminDomainName
 
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-
-  InternetGatewayVpcAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
+  Distribution:
+    Type: AWS::CloudFront::Distribution
     Properties:
-      VpcId: !Ref Vpc
-      InternetGatewayId: !Ref InternetGateway
+      DistributionConfig:
+        Aliases:
+          - !Ref OryFmDomainName
+          - !Ref HydraPublicDomainName
+          - !Ref HydraAdminDomainName
+        ViewerCertificate:
+          AcmCertificateArn: !Ref Certificate
+          SslSupportMethod: sni-only
+        Origins:
+          - Id: Origin
+            DomainName: !GetAtt ["Instance", "PublicDnsName"]
+            CustomOriginConfig:
+              OriginProtocolPolicy: http-only
+        Enabled: true
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+            - PUT
+            - PATCH
+            - POST
+            - DELETE
+          TargetOriginId: Origin
+          ViewerProtocolPolicy: redirect-to-https
+          DefaultTTL: 0
+          MinTTL: 0
+          MaxTTL: 0
+          ForwardedValues:
+            Cookies:
+              Forward: all
+            Headers:
+              - Host
+              - Authorization
+            QueryString: true
+          Compress: false
+    DependsOn: InstanceIp
 
-  FirstPublicSubnet:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref Vpc
-      AvailabilityZone: !Select
-        - 0
-        - Fn::GetAZs: !Ref AWS::Region
-      CidrBlock: 10.0.61.0/26
-      MapPublicIpOnLaunch: true
-
-  SecondPublicSubnet:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref Vpc
-      AvailabilityZone: !Select
-        - 1
-        - Fn::GetAZs: !Ref AWS::Region
-      CidrBlock: 10.0.61.64/26
-      MapPublicIpOnLaunch: true
-
-  PublicSubnetsRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref Vpc
-
-  FirstPublicSubnetAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref FirstPublicSubnet
-      RouteTableId: !Ref PublicSubnetsRouteTable
-
-  SecondPublicSubnetAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref SecondPublicSubnet
-      RouteTableId: !Ref PublicSubnetsRouteTable
-
-  PublicSubnetsInternetGatewayRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PublicSubnetsRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
+# Shall be used instead of ForwardedValues, but is currently broken.
+#  CachePolicy:
+#    Type: AWS::CloudFront::CachePolicy
+#    Properties:
+#      CachePolicyConfig:
+#        Name: NoCache
+#        MinTTL: 0
+#        MaxTTL: 0
+#        DefaultTTL: 0
+#        ParametersInCacheKeyAndForwardedToOrigin:
+#          CookiesConfig:
+#            CookieBehavior: all
+#          EnableAcceptEncodingGzip: true
+#          HeadersConfig:
+#            HeaderBehavior: whitelist
+#            Headers:
+#              - Host
+#              - Authorization
+#          QueryStringsConfig:
+#            QueryStringBehavior: all
 
   # Secrets
   HydraAdminSecret:
@@ -193,10 +190,12 @@ Resources:
         ExcludePunctuation: true
 
   # EC2
-  DeploymentRole:
+  InstanceRole:
     Type: AWS::IAM::Role
     Properties:
       Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
       AssumeRolePolicyDocument:
         Statement:
           - Action:
@@ -206,7 +205,7 @@ Resources:
                 - ec2.amazonaws.com
             Effect: Allow
 
-  DeploymentPolicies:
+  InstancePolicies:
     Type: AWS::IAM::Policy
     Properties:
       PolicyName: SecretsRead
@@ -217,30 +216,24 @@ Resources:
             Effect: Allow
             Resource: !Ref HydraAdminSecret
       Roles:
-        - !Ref DeploymentRole
+        - !Ref InstanceRole
 
-  DeploymentProfile:
+  InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - !Ref DeploymentRole
+        - !Ref InstanceRole
       Path: /
 
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Access to host
-      VpcId: !Ref Vpc
       SecurityGroupIngress:
         # Public HTTP access
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          CidrIp: 0.0.0.0/0
-        # Public HTTPS access
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
           CidrIp: 0.0.0.0/0
         # Public SSH access
         - IpProtocol: tcp
@@ -252,10 +245,9 @@ Resources:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
-      InstanceId: !Ref WebInstance
-    DependsOn: InternetGatewayVpcAttachment
+      InstanceId: !Ref Instance
 
-  WebInstance:
+  Instance:
     Type: AWS::EC2::Instance
     CreationPolicy:
       ResourceSignal:
@@ -268,9 +260,7 @@ Resources:
           - !Ref AWS::Region
           - AMI
       InstanceType: !Ref InstanceType
-      KeyName: !Ref KeyName
-      IamInstanceProfile: !Ref DeploymentProfile
-      SubnetId: !Ref FirstPublicSubnet
+      IamInstanceProfile: !Ref InstanceProfile
       SecurityGroupIds:
         - !Ref InstanceSecurityGroup
       UserData:
@@ -285,13 +275,13 @@ Resources:
 
           /opt/aws/bin/cfn-init -v \
             --stack ${AWS::StackName} \
-            --resource WebInstance \
+            --resource Instance \
             --region ${AWS::Region} \
             --configsets full_install
 
           /opt/aws/bin/cfn-signal -e $? \
             --stack ${AWS::StackName} \
-            --resource WebInstance \
+            --resource Instance \
             --region ${AWS::Region}
     Metadata:
       AWS::CloudFormation::Init:
@@ -302,17 +292,13 @@ Resources:
             - install_docker
             - install_node
             - install_nginx
-            - install_certbot
             - install_hydra
             - update_hydra
+            - configure_oryfm_user
             - install_oryfm
-            - update_and_build_oryfm
-            - install_cert_tools
-            - run_cert_tools
           update:
             - update_hydra
-            - update_and_build_oryfm
-            - run_cert_tools
+            - install_oryfm
 
         install_aws_cli:
           packages:
@@ -337,8 +323,8 @@ Resources:
               content: !Sub |
                 [cfn-auto-reloader-hook]
                 triggers=post.update
-                path=Resources.WebInstance.Metadata.AWS::CloudFormation::Init
-                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WebInstance --configsets update --region ${AWS::Region}
+                path=Resources.Instance.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource Instance --configsets update --region ${AWS::Region}
                 runas=root
               mode: "000400"
               owner: root
@@ -396,20 +382,6 @@ Resources:
             01_install:
               command: apt-get install -y nginx
 
-        install_certbot:
-          packages:
-            apt:
-              software-properties-common: []
-          commands:
-            01_add_universe:
-              command: add-apt-repository universe
-            02_add_repository:
-              command: add-apt-repository ppa:certbot/certbot
-            03_update_apt_get:
-              command: apt-get update
-            04_install_certbot:
-              command: apt-get install -y certbot python-certbot-nginx
-
         install_hydra:
           packages:
             apt:
@@ -450,7 +422,7 @@ Resources:
 
                     location / {
                         proxy_pass http://127.0.0.1:9000;
-                        proxy_set_header X-Forwarded-Proto $scheme;
+                        proxy_set_header X-Forwarded-Proto https;
                     }
                 }
               mode: "000644"
@@ -472,12 +444,12 @@ Resources:
                         auth_basic_user_file /etc/hydra-admin.htpasswd;
 
                         proxy_pass http://127.0.0.1:9001/clients;
-                        proxy_set_header X-Forwarded-Proto $scheme;
+                        proxy_set_header X-Forwarded-Proto https;
                     }
 
                     location /oauth2/introspect {
                         proxy_pass http://127.0.0.1:9001/oauth2/introspect;
-                        proxy_set_header X-Forwarded-Proto $scheme;
+                        proxy_set_header X-Forwarded-Proto https;
                     }
                 }
               mode: "000644"
@@ -542,32 +514,26 @@ Resources:
                   | htpasswd -ci /etc/hydra-admin.htpasswd admin
             07_reload_nginx:
               command: systemctl reload nginx
-            08_install_hydra_public_cert:
-              command: !Sub |
-                certbot install -n --nginx --redirect --cert-name ${HydraPublicDomainName} || true
-            09_install_hydra_admin_cert:
-              command: !Sub |
-                certbot install -n --nginx --redirect --cert-name ${HydraAdminDomainName} || true
 
-        install_oryfm:
-          packages:
-            apt:
-              git: []
+        configure_oryfm_user:
           users:
             oryfm:
               homeDir:
                 /opt/oryfm
           commands:
-            01_create_directory:
-              command: mkdir -p /opt/oryfm
-            02_chown_directory:
-              command: chown oryfm:oryfm /opt/oryfm
-            03_clone:
-              command: runuser -l -s /bin/bash oryfm -c 'git clone https://github.com/soliantconsulting/oryfm.git /opt/oryfm/server'
+            01_create:
+              command: mkdir -p /opt/oryfm && chown oryfm:oryfm /opt/oryfm
+            02_install_pm2:
+              command: npm i -g pm2
+            03_startup_pm2:
+              command: pm2 startup -u oryfm
 
-        update_and_build_oryfm:
+        install_oryfm:
+          packages:
+            apt:
+              unzip: []
           files:
-            /opt/oryfm/server/.env:
+            /opt/oryfm/oryfm.env:
               content: !Sub |
                 FILEMAKER_URL=${FileMakerUrl}
                 FILEMAKER_DATABASE=${FileMakerDatabase}
@@ -585,22 +551,36 @@ Resources:
               mode: "000644"
               owner: oryfm
               group: oryfm
-            /lib/systemd/system/oryfm.service:
+            /opt/oryfm/ecosystem.config.js:
               content: !Sub |
-                [Unit]
-                Description=OryFM instance
-                After=network.target
-
-                [Service]
-                Type=simple
-                User=oryfm
-                WorkingDirectory=/opt/oryfm/server
-                ExecStart=/usr/bin/node /opt/oryfm/server/dist/serve.js
-                Restart=on-failure
-
-                [Install]
-                WantedBy=multi-user.target
+                module.exports = {
+                    apps: [{
+                        name: 'oryfm',
+                        script: `${!process.env.PWD}/server/dist/serve.js`,
+                        cwd: `${!process.env.PWD}/server`,
+                        watch: false,
+                        autorestart: true,
+                        restart_delay: 1000,
+                        kill_timeout: 3000,
+                        exec_mode: 'cluster',
+                        instances: -1,
+                        instance_var: 'INSTANCE_ID',
+                        env: {
+                            NODE_ENV: 'development',
+                        },
+                        env_production: {
+                            NODE_ENV: 'production',
+                            PORT: '3000',
+                        },
+                    }],
+                };
               mode: "000644"
+              owner: oryfm
+              group: oryfm
+            /usr/local/sbin/reload-oryfm:
+              content: !Sub |
+                runuser -s /bin/bash -l oryfm -c 'cd /opt/oryfm && pm2 startOrGracefulReload ./ecosystem.config.js --env production'
+              mode: "000700"
               owner: root
               group: root
             /etc/nginx/sites-available/oryfm.conf:
@@ -622,152 +602,30 @@ Resources:
               mode: "120644"
               owner: root
               group: root
-            /usr/local/bin/update-custom-labels.sh:
-              content: !Sub |
-                #!/bin/bash
-
-                URL="${OryFmCustomLabelsUrl}"
-                OLD_SUM="NONE"
-                TMP="/tmp/custom-labels.json"
-                TARGET="/opt/oryfm/server/custom-labels.json"
-
-                if [ -f "$TARGET" ]
-                then
-                  OLD_SUM=$(md5sum "$TARGET" | awk '{ print $1 }')
-                fi
-
-                if [ -z "$URL" ]
-                  then
-                  rm -f "$TARGET"
-
-                  if [ "$OLD_SUM" != "NONE" ]
-                  then
-                    systemctl restart oryfm
-                  fi
-
-                  exit 0
-                fi
-
-                curl "$URL" -o "$TMP"
-
-                if [ $? != 0 ]
-                  then
-                  exit 0
-                fi
-
-                NEW_SUM=$(md5sum "$TMP" | awk '{ print $1 }')
-
-                if [ "$OLD_SUM" != "$NEW_SUM" ]
-                then
-                  cp -a "$TMP" "$TARGET"
-                  rm -f "$TMP"
-                  chown portal:portal "$TARGET"
-                  systemctl restart oryfm
-                fi
-              mode: "000755"
-              owner: root
-              group: root
-            /etc/cron.d/update-custom-labels:
-              content: !Sub |
-                */15 * * * * root /usr/local/bin/update-custom-labels.sh
-              mode: "000644"
-              owner: root
-              group: root
           commands:
-            01_update:
-              command: runuser -s /bin/bash -l oryfm -c 'cd /opt/oryfm/server && git pull'
-            02_install:
-              command: runuser -s /bin/bash -l oryfm -c 'cd /opt/oryfm/server && npm install'
-            03_build:
-              command: runuser -s /bin/bash -l oryfm -c 'cd /opt/oryfm/server && npm run build'
-            04_reload_daemon:
-              command: systemctl daemon-reload
-            05_enable_daemon:
-              command: systemctl enable oryfm
-            06_restart_daemon:
-              command: systemctl restart oryfm
-            07_reload_nginx:
+            01_clean:
+              command: rm -rf /opt/oryfm/oryfm-main /opt/oryfm/oryfm-main.zip /opt/oryfm/server
+            02_download:
+              command: wget -O /opt/oryfm/oryfm-main.zip https://github.com/soliantconsulting/oryfm/archive/main.zip
+            03_unzip:
+              command: cd /opt/oryfm && unzip oryfm-main.zip && chown oryfm:oryfm -R oryfm-main
+            04_install:
+              command: runuser -s /bin/bash -l oryfm -c 'cd /opt/oryfm/oryfm-main && npm install && npm run build'
+            05_move:
+              command: mv /opt/oryfm/oryfm-main /opt/oryfm/server
+            06_setup_custom_labels:
+              command: cp -u /opt/oryfm/server/custom-labels.json.dist /opt/oryfm/custom-labels.json
+            07_configure:
+              command: ln -s /opt/oryfm/oryfm.env /opt/oryfm/server/.env && ln -s /opt/oryfm/custom-labels.json /opt/oryfm/server/custom-labels.json
+            08_startup:
+              command: reload-oryfm
+            09_reload_nginx:
               command: systemctl reload nginx
-            08_force_update_custom_labels:
-              command: /usr/local/bin/update-custom-labels.sh
-            09_install_cert:
-              command: !Sub |
-                certbot install -n --nginx --redirect --cert-name ${OryFmDomainName} || true
-
-        install_cert_tools:
-          packages:
-            apt:
-              dnsutils: []
-          files:
-            /usr/local/sbin/cert-register:
-              content: !Sub |
-                #!/bin/bash
-                domain=$1
-
-                until certbot -n -m "${LetsEncryptEmailAddress}" --agree-tos --redirect --nginx -d $domain
-                do
-                  echo "Sleeping for 15 minutes"
-                  sleep 900
-                done
-              mode: "000755"
-              owner: root
-              group: root
-            /usr/local/sbin/cert-update:
-              content: !Sub |
-                #!/bin/bash
-                domains=("$@")
-                existingDomains=()
-
-                if [[ -d "/etc/letsencrypt/live" ]]; then
-                  for path in /etc/letsencrypt/live/*/; do
-                    domain=$(basename -- "$path")
-                    existingDomains+=("$domain")
-                  done
-                fi
-
-                for existingDomain in "${!existingDomains[@]}"; do
-                  exists="false"
-
-                  for domain in "${!domains[@]}"; do
-                    if [[ "$domain" == "$existingDomain" ]]; then
-                      exists="true"
-                      break
-                    fi
-                  done
-
-                  if [[ $exists == "false" ]]; then
-                    certbot delete --cert-name $existingDomain
-                  fi
-                done
-
-                for domain in "${!domains[@]}"; do
-                  exists="false"
-
-                  for existingDomain in "${!existingDomains[@]}"; do
-                    if [[ "$domain" == "$existingDomain" ]]; then
-                      exists="true"
-                      break
-                    fi
-                  done
-
-                  if [[ $exists == "false" ]]; then
-                    echo "Running cert-register for $domain"
-                    /usr/local/sbin/cert-register $domain
-                  else
-                    echo "No update for $domain required"
-                  fi
-                done
-              mode: "000755"
-              owner: root
-              group: root
-
-        run_cert_tools:
-          commands:
-            01_run_cert_update:
-              command: !Sub |
-                start-stop-daemon -Sbx /usr/local/sbin/cert-update -- ${HydraPublicDomainName} ${HydraAdminDomainName} ${OryFmDomainName} &
 
 Outputs:
-  InstanceIp:
-    Value: !Ref InstanceIp
-    Description: "Instance IP"
+  HydraAdminSecret:
+    Value: !Ref HydraAdminSecret
+    Description: "Hydra Admin Secret ARN"
+  DistributionDomainName:
+    Value: !GetAtt Distribution.DomainName
+    Description: "Distribution domain name"
