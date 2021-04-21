@@ -1,5 +1,5 @@
 import express from 'express';
-import {sanitizeBody} from 'express-validator';
+import {body} from 'express-validator';
 import {getUser} from '../services/filemaker';
 import {
     AcceptConsentRequest,
@@ -13,6 +13,7 @@ import {cl} from '../utils';
 const router = express.Router();
 
 const userRememberTime = parseInt(process.env.CONSENT_USER_REMEMBER_TIME, 10);
+const defaultRememberTime = parseInt(process.env.CONSENT_DEFAULT_REMEMBER_TIME, 10);
 
 router.get('/', async (request, response, next) => {
     try {
@@ -35,8 +36,8 @@ router.get('/', async (request, response, next) => {
 });
 
 router.post('/', ...[
-    sanitizeBody('remember').toBoolean(),
-    sanitizeBody('allow').toBoolean(),
+    body('remember').toBoolean(),
+    body('allow').toBoolean(),
 ], async (request, response, next) => {
     try {
         const challenge = request.body.challenge;
@@ -72,7 +73,7 @@ const renderForm = (
         challenge,
         client: consentRequest.client,
         scope: labelScope(consentRequest),
-        showRememberChoice: userRememberTime > 0,
+        showRememberChoice: userRememberTime > 0 && userRememberTime !== defaultRememberTime,
     });
 };
 
@@ -106,7 +107,7 @@ const createAcceptConsentRequest = async (
     };
 
     body.remember = true;
-    body.remember_for = remember ? userRememberTime : 0;
+    body.remember_for = remember ? userRememberTime : defaultRememberTime;
 
     if (Object.entries(idToken).length > 0) {
         body.session = {

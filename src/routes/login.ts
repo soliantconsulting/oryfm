@@ -1,7 +1,7 @@
-import express from 'express';
-import bcrypt from 'bcrypt';
 import argon2, {argon2id} from 'argon2';
-import {body, sanitizeBody, validationResult} from 'express-validator';
+import bcrypt from 'bcrypt';
+import express from 'express';
+import {body, validationResult} from 'express-validator';
 import {authenticateUser, getUser, setPassword} from '../services/filemaker';
 import {AcceptLoginRequest, acceptLoginRequest, getLoginRequest, LoginRequest} from '../services/hydra';
 import {cl} from '../utils';
@@ -9,10 +9,11 @@ import {cl} from '../utils';
 const router = express.Router();
 
 const userRememberTime = parseInt(process.env.LOGIN_USER_REMEMBER_TIME, 10);
+const defaultRememberTime = parseInt(process.env.LOGIN_DEFAULT_REMEMBER_TIME, 10);
 
 router.get('/', async (request, response, next) => {
     try {
-        const challenge = request.query.login_challenge;
+        const challenge = request.query.login_challenge as string;
         const loginRequest = await getLoginRequest(challenge);
 
         if (loginRequest.skip) {
@@ -61,7 +62,7 @@ const identifierValidation = process.env.AUTHENTICATION_METHOD !== 'basic-auth'
 router.post('/', ...[
     identifierValidation,
     body('password', cl('Password required')).not().isEmpty(),
-    sanitizeBody('remember').toBoolean(),
+    body('remember').toBoolean(),
 ], async (request, response, next) => {
     try {
         const challenge = request.body.challenge;
@@ -105,7 +106,7 @@ router.post('/', ...[
         };
 
         body.remember = true;
-        body.remember_for = request.body.remember ? userRememberTime : 0;
+        body.remember_for = request.body.remember ? userRememberTime : defaultRememberTime;
 
         const completedRequest = await acceptLoginRequest(challenge, body);
         response.redirect(completedRequest.redirect_to);
@@ -128,7 +129,7 @@ const renderForm = (
     response.render('login', {
         csrfToken: request.csrfToken(),
         challenge,
-        showRememberChoice: userRememberTime > 0,
+        showRememberChoice: userRememberTime > 0 && defaultRememberTime !== userRememberTime,
         client: loginRequest.client,
         errors,
     });

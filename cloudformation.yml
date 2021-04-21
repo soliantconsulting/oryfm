@@ -20,7 +20,9 @@ Metadata:
           default: "OryFM Configuration"
         Parameters:
           - OryFmUserLoginRememberTime
+          - OryFmDefaultLoginRememberTime
           - OryFmUserConsentRememberTime
+          - OryFmDefaultConsentRememberTime
           - OryFmThemeCssUrl
           - OryFmAuthenticationMethod
           - OryFmTestMode
@@ -56,11 +58,21 @@ Parameters:
     Type: Number
     MinValue: 0
     Default: 2592000
+  OryFmDefaultLoginRememberTime:
+    Description: How long to remember login when user does not check box (set to 0 to disable)
+    Type: Number
+    MinValue: 0
+    Default: 0
   OryFmUserConsentRememberTime:
     Description: How long to remember consent when user checks box (set to 0 to disable)
     Type: Number
     MinValue: 0
     Default: 2592000
+  OryFmDefaultConsentRememberTime:
+    Description: How long to remember consent when user does not check box (set to 0 to disable)
+    Type: Number
+    MinValue: 0
+    Default: 0
   OryFmThemeCssUrl:
     Description: Optional URL for custom OryFM theme
     Type: String
@@ -541,7 +553,9 @@ Resources:
                 FILEMAKER_PASSWORD=${FileMakerPassword}
                 FILEMAKER_LAYOUT=${FileMakerLayout}
                 LOGIN_USER_REMEMBER_TIME=${OryFmUserLoginRememberTime}
+                LOGIN_DEFAULT_REMEMBER_TIME=${OryFmDefaultLoginRememberTime}
                 CONSENT_USER_REMEMBER_TIME=${OryFmUserConsentRememberTime}
+                CONSENT_DEFAULT_REMEMBER_TIME=${OryFmDefaultConsentRememberTime}
                 HYDRA_ADMIN_URL=http://hydra-admin.local
                 THEME_CSS_URL=${OryFmThemeCssUrl}
                 AUTHENTICATION_METHOD=${OryFmAuthenticationMethod}
