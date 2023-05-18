@@ -41,7 +41,7 @@ Parameters:
   InstanceType:
     Description: EC2 instance type
     Type: String
-    Default: t2.small
+    Default: t3.small
 
   OryFmDomainName:
     Type: String
@@ -111,13 +111,13 @@ Mappings:
 
   RegionMap:
     us-east-1:
-      AMI: ami-00a208c7cdba991ea
+      AMI: ami-053b0d53c279acc90
     us-east-2:
-      AMI: ami-059d836af932792c3
+      AMI: ami-024e6efaf93d85776
     us-west-1:
-      AMI: ami-0f42d8c4eb586ccf7
+      AMI: ami-0f8e81a3da6e2510a
     us-west-2:
-      AMI: ami-0a7d051a1c4b54f65
+      AMI: ami-03f65b8614a860c29d
 
 Resources:
   # CloudFront
@@ -279,19 +279,17 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash -x
           apt-get update -y
-          apt-get install -y python-setuptools
+          apt-get install -y python-setuptools python3-pip
           mkdir -p /opt/aws/bin
-          python /usr/lib/python2.7/dist-packages/easy_install.py \
-            --script-dir /opt/aws/bin \
-            https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
-
-          /opt/aws/bin/cfn-init -v \
+          pip3 install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-py3-latest.tar.gz
+          
+          /usr/local/bin/cfn-init -v \
             --stack ${AWS::StackName} \
             --resource Instance \
             --region ${AWS::Region} \
             --configsets full_install
 
-          /opt/aws/bin/cfn-signal -e $? \
+          /usr/local/bin/cfn-signal -e $? \
             --stack ${AWS::StackName} \
             --resource Instance \
             --region ${AWS::Region}
@@ -336,7 +334,7 @@ Resources:
                 [cfn-auto-reloader-hook]
                 triggers=post.update
                 path=Resources.Instance.Metadata.AWS::CloudFormation::Init
-                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource Instance --configsets update --region ${AWS::Region}
+                action=/usr/local/bin/cfn-init -v --stack ${AWS::StackName} --resource Instance --configsets update --region ${AWS::Region}
                 runas=root
               mode: "000400"
               owner: root
@@ -348,7 +346,7 @@ Resources:
 
                 [Service]
                 Type=simple
-                ExecStart=/opt/aws/bin/cfn-hup
+                ExecStart=/usr/local/bin/cfn-hup
                 Restart=always
 
                 [Install]
@@ -374,7 +372,7 @@ Resources:
             01_add_repository_key:
               command: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
             02_add_repository:
-              command: add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+              command: add-apt-repository -y "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
             03_update_apt_get:
               command: apt-get update
             04_install_docker:
@@ -385,7 +383,7 @@ Resources:
         install_node:
           commands:
             01_add_repository:
-              command: curl -sL https://deb.nodesource.com/setup_12.x | bash -
+              command: curl -sL https://deb.nodesource.com/setup_18.x | bash -
             02_install_node:
               command: apt-get install -y nodejs
 
@@ -418,7 +416,7 @@ Resources:
                   -e POSTGRES_USER=hydra \
                   -e POSTGRES_PASSWORD=$POSTGRES_SECRET \
                   -e POSTGRES_DB=hydra \
-                  -d postgres:9.6 \
+                  -d postgres:14.8-alpine \
                 '
 
         update_hydra:
@@ -497,9 +495,9 @@ Resources:
             02_remove_hydra:
               command: docker rm ory-hydra || true
             03_pull_hydra:
-              command: docker pull oryd/hydra:v1.7
+              command: docker pull oryd/hydra:v1.11
             04_migrate_database:
-              command: env $(cat /etc/hydra-secrets.env | xargs) bash -c 'docker run --rm --network hydra oryd/hydra:v1.7 migrate sql "$POSTGRES_URL" --yes'
+              command: env $(cat /etc/hydra-secrets.env | xargs) bash -c 'docker run --rm --network hydra oryd/hydra:v1.11 migrate sql "$POSTGRES_URL" --yes'
             05_start_hydra:
               command: !Sub |
                 env $(cat /etc/hydra-secrets.env | xargs) bash -c 'docker run -d \
@@ -517,7 +515,7 @@ Resources:
                   -e URLS_LOGIN=https://${OryFmDomainName}/login \
                   -e URLS_LOGOUT=https://${OryFmDomainName}/logout \
                   -e URLS_ERROR=https://${OryFmDomainName}/error \
-                  oryd/hydra:v1.7 serve all \
+                  oryd/hydra:v1.11 serve all \
                 '
             06_create_htpasswd:
               command: !Sub |
@@ -621,13 +619,13 @@ Resources:
             01_clean:
               command: rm -rf /opt/oryfm/oryfm-main /opt/oryfm/oryfm-main.zip /opt/oryfm/server
             02_download:
-              command: wget -O /opt/oryfm/oryfm-main.zip https://github.com/soliantconsulting/oryfm/archive/main.zip
+              command: wget -O /opt/oryfm/oryfm-main.zip https://github.com/soliantconsulting/oryfm/archive/refs/heads/feat/node-18.zip
             03_unzip:
-              command: cd /opt/oryfm && unzip oryfm-main.zip && chown oryfm:oryfm -R oryfm-main
+              command: cd /opt/oryfm && unzip oryfm-main.zip && chown oryfm:oryfm -R oryfm-feat-node-18
             04_install:
-              command: runuser -s /bin/bash -l oryfm -c 'cd /opt/oryfm/oryfm-main && npm install && npm run build'
+              command: runuser -s /bin/bash -l oryfm -c 'cd /opt/oryfm/oryfm-feat-node-18 && npm install && npm run build'
             05_move:
-              command: mv /opt/oryfm/oryfm-main /opt/oryfm/server
+              command: mv /opt/oryfm/oryfm-feat-node-18 /opt/oryfm/server
             06_setup_custom_labels:
               command: cp -u /opt/oryfm/server/custom-labels.json.dist /opt/oryfm/custom-labels.json
             07_configure:
